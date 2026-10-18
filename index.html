@@ -1,124 +1,147 @@
 <!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>STARDUST GARDEN</title>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>STARDUST GARDEN 防衛バトル試作</title>
 <style>
-:root{--bg:#0a0f26;--cell:#151d45;--line:#2a3670;--glow:#ffcf5c;--move:#4fe0d0;--foe:#ff6f91}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 0,#1a2260,var(--bg) 60%);color:#f2f4ff;font-family:"Hiragino Sans","Noto Sans JP",sans-serif;text-align:center;padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom)}
-h1{font-size:1.15rem;margin:14px 0 6px;letter-spacing:.18em;font-weight:600}
-#info{display:flex;justify-content:space-around;max-width:420px;margin:8px auto;font-size:.95rem}
-#board{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;max-width:420px;margin:0 auto}
-.c{aspect-ratio:1;border-radius:8px;background:var(--cell);border:1px solid var(--line);color:inherit;font-size:1.05rem;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0;font-family:inherit}
-.c small{font-size:.62rem;opacity:.85}
-.town{background:#3a2a1c;border-color:#8c6c3e}
-.move{outline:2px solid var(--move);outline-offset:-2px}
-.warn{border-color:var(--glow);animation:pulse 1s infinite alternate}
-@keyframes pulse{from{box-shadow:inset 0 0 16px var(--glow)}to{box-shadow:inset 0 0 4px var(--glow)}}
-.unit{background:#1c5b7d}
-.foe{background:#5b1d3b;border-color:var(--foe)}
-#msg{min-height:2.8em;margin:10px auto;max-width:420px;font-size:.9rem;line-height:1.5}
-button.b{font-size:1rem;padding:10px 18px;margin:4px;border-radius:8px;border:none;background:#3a4aa0;color:#fff;font-family:inherit}
-#rule{font-size:.74rem;opacity:.7;max-width:420px;margin:14px auto;line-height:1.6;text-align:left}
-@media (prefers-reduced-motion:reduce){.warn{animation:none}}
-</style>
-</head>
-<body>
-<h1>STARDUST GARDEN</h1>
-<div id="info"></div>
-<div id="board"></div>
-<div id="msg"></div>
-<button class="b" id="wait">その場で待機</button>
-<button class="b" id="reset">はじめから</button>
-<div id="rule">
-遊び方（試作・仮ルール）<br>
-・青緑の枠のマスをタップして、ユニット（キ）を動かす（2マスまで）<br>
-・動いたあと、隣の敵に自動で2ダメージ<br>
-・黄色く光るマスには、次のターンに星屑が到着して敵が出る。ユニットがそのマスにいれば防げる<br>
-・敵は街に向かって1マスずつ進み、隣のユニットか街を攻撃する<br>
-・5ターン耐えれば勝ち。街かユニットのHPが0で負け
-</div>
+body{margin:0;background:#0a0a1f;color:#e6e6ff;font-family:"Hiragino Sans","Noto Sans JP",sans-serif;text-align:center}
+#st{padding:8px;font-size:14px}
+canvas{width:100%;max-width:528px;touch-action:manipulation;background:#14143a}
+button{font:inherit;font-size:15px;padding:8px 12px;margin:4px;border:0;border-radius:6px;background:#5b5bd6;color:#fff}
+button:focus-visible{outline:3px solid #ffe14a}
+#log{font-size:13px;text-align:left;max-width:528px;margin:4px auto;padding:0 10px;min-height:90px;line-height:1.5}
+</style></head><body>
+<div id="st"></div>
+<canvas id="c" width="528" height="528"></canvas>
+<div><button id="go">ターン実行</button><button id="skip">攻撃なし</button><button id="rs">最初から</button></div>
+<div id="log"></div>
 <script>
-const N=6,TOWN=5,TURNS=5;
-let s;
-const at=(r,c)=>s.en.find(e=>e.r===r&&e.c===c);
-const isU=(r,c)=>s.u.r===r&&s.u.c===c;
-const adj=(r,c)=>[[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([a,b])=>a>=0&&a<N&&b>=0&&b<N);
-
+const N=12,S=44,cv=document.getElementById('c'),g=cv.getContext('2d');
+let U,F,E,turn,city,over,busy,sel,mode,plan,log,hpq;
+const man=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
+const occ=(x,y)=>[...U,...F,...E].some(o=>o.x==x&&o.y==y);
+const eAt=(x,y)=>E.find(o=>o.x==x&&o.y==y);
+const ctl=f=>U.some(u=>man(u,f)<=3);
+const alive=a=>U.includes(a)||F.includes(a);
+const sl=ms=>new Promise(r=>setTimeout(r,ms));
+const lg=s=>log.push(s);
 function init(){
-  s={turn:1,town:10,uhp:6,u:{r:3,c:2},en:[],warn:[],over:null,
-     msg:"光るマスに、次のターン星屑が来ます。ユニットを動かしましょう。"};
-  plan();
-  draw();
+ U=[{nm:'キュリー',n:'キ',hp:8,x:5,y:8,atk:2,type:'U'},{nm:'A',n:'A',hp:10,x:6,y:8,atk:3,type:'U'}];
+ F=[{nm:'F1',n:5,x:4,y:9,type:'F'},{nm:'F2',n:5,x:7,y:9,type:'F'}];
+ E=[];turn=1;city=15;over=0;busy=0;sel=null;mode='m';plan=new Map();log=['ターン1：味方をタップして行動を決め、「ターン実行」'];
+ hpq=[4,3,5,4,3,5,4,3,5];spawn(2);draw();
 }
-function plan(){
-  s.warn=[];
-  const free=[];
-  for(let r=0;r<TOWN;r++)for(let c=0;c<N;c++)if(!at(r,c))free.push([r,c]);
-  for(let i=0;i<2&&free.length;i++){
-    s.warn.push(free.splice(Math.floor(Math.random()*free.length),1)[0]);
-  }
+function reach(a){
+ const k=(x,y)=>x+','+y,s={x:a.x,y:a.y,p:[],s:0},d={[k(a.x,a.y)]:s},q=[s];
+ while(q.length){const c=q.shift();if(c.s>=2)continue;
+  for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=c.x+dx,ny=c.y+dy;
+   if(nx<0||ny<0||nx>=N||ny>10||d[k(nx,ny)]||occ(nx,ny))continue;
+   d[k(nx,ny)]={x:nx,y:ny,p:[...c.p,[nx,ny]],s:c.s+1};q.push(d[k(nx,ny)]);}}
+ return Object.values(d);
 }
-function canMove(r,c){
-  return !s.over&&r<TOWN&&!at(r,c)&&Math.abs(r-s.u.r)+Math.abs(c-s.u.c)<=2;
+function tg(a,px,py){
+ const r=[];
+ for(let y=0;y<=10;y++)for(let x=0;x<N;x++){const d=Math.abs(x-px)+Math.abs(y-py);
+  const ok=a.type=='F'?(d==1||(d==2&&(x==px||y==py))):a.nm=='キュリー'?(d>=1&&d<=3):d==1;
+  if(ok)r.push({x,y});}
+ return r;
 }
-function act(r,c){
-  if(!canMove(r,c))return;
-  s.u={r,c};
-  endTurn();
+function spawn(k){for(let i=0;i<k;i++){const fr=[...Array(N).keys()].filter(x=>!occ(x,0));E.push({x:fr[Math.random()*fr.length|0],y:0,hp:hpq.shift(),type:'E'});}}
+function chk(){if(!over&&(city<=0||!U.length)){over=1;lg('■ゲームオーバー');}}
+function hurt(o,v){
+ if(o.type=='U'){o.hp-=v;if(o.hp<=0){U.splice(U.indexOf(o),1);lg(o.nm+'が倒れた');}}
+ else{o.n-=v;if(o.n<=0){F.splice(F.indexOf(o),1);lg(o.nm+'が全滅');}}
 }
-function endTurn(){
-  const log=[];
-  // 1. ユニットの攻撃
-  adj(s.u.r,s.u.c).forEach(([r,c])=>{
-    const e=at(r,c);
-    if(e){e.hp-=2;log.push("敵に2ダメージ");}
-  });
-  s.en=s.en.filter(e=>e.hp>0);
-  // 2. 星屑の到着
-  const old=s.en.slice();
-  s.warn.forEach(([r,c])=>{
-    if(isU(r,c)){log.push("星屑を防いだ");}
-    else if(!at(r,c)){s.en.push({r,c,hp:3});log.push("星屑から敵が出現");}
-  });
-  // 3. 前から居た敵の行動
-  old.forEach(e=>{
-    if(adj(e.r,e.c).some(([r,c])=>isU(r,c))){s.uhp-=1;log.push("敵がユニットを攻撃");}
-    else if(e.r===TOWN-1){s.town-=1;log.push("敵が街を攻撃");}
-    else if(!at(e.r+1,e.c)&&!isU(e.r+1,e.c)){e.r+=1;}
-  });
-  // 4. 勝ち負けと次のターン
-  if(s.town<=0||s.uhp<=0){s.over="lose";s.warn=[];}
-  else if(s.turn>=TURNS){s.over="win";s.warn=[];}
-  else{s.turn++;plan();}
-  s.msg=log.join("／")||"何も起きませんでした。";
-  if(s.over)s.msg+=s.over==="win"?"　夜を越えました！":"　街を守れませんでした…";
-  draw();
+function dmg(e,v,who){
+ e.hp-=v;lg(who+'→敵に'+v+'ダメージ');
+ if(e.hp<=0){E.splice(E.indexOf(e),1);if(e.boss){over=1;lg('★クリア！ボスを倒した！');}}
+}
+function mv(a,path){for(const[px,py]of path){if(occ(px,py))break;a.x=px;a.y=py;}}
+function atk(a,t){
+ if(!t)return;
+ const d=Math.abs(t.x-a.x)+Math.abs(t.y-a.y);
+ if(a.type=='F'){
+  if(d<1||d>2||(t.x!=a.x&&t.y!=a.y))return lg(a.nm+'の攻撃は空振り');
+  const dx=Math.sign(t.x-a.x),dy=Math.sign(t.y-a.y);
+  for(let i=1;i<=d;i++){const e=eAt(a.x+dx*i,a.y+dy*i);if(e)return dmg(e,a.n,a.nm);}
+  return lg(a.nm+'の攻撃は空振り');
+ }
+ const e=eAt(t.x,t.y);
+ if(e&&d>=1&&d<=(a.nm=='A'?1:3))dmg(e,a.atk,a.nm);else lg(a.nm+'の攻撃は空振り');
+}
+function auto(f){
+ if(!E.length)return;
+ const n=E.reduce((b,e)=>man(f,e)<man(f,b)?e:b);
+ const c=reach(f).reduce((b,c)=>man(c,n)<man(b,n)?c:b);
+ mv(f,c.p);
+ const t=tg(f,f.x,f.y).sort((a,b)=>man(a,f)-man(b,f)).find(c=>eAt(c.x,c.y));
+ if(t)atk(f,t);
+}
+function eAct(e){
+ let m=0;
+ if(e.y<10){
+  const c=reach(e).reduce((b,c)=>(10-c.y<10-b.y||(c.y==b.y&&Math.abs(c.x-e.x)<Math.abs(b.x-e.x)))?c:b);
+  mv(e,c.p);m=c.s;
+ }
+ if(e.y==10){city-=3;lg('敵が街を攻撃！ 街HP'+Math.max(city,0));}
+ else if(m<2){const o=[...U,...F].find(o=>man(o,e)==1);if(o){hurt(o,3);lg('敵が'+o.nm+'を攻撃');}}
+ chk();
+}
+async function run(){
+ if(busy||over)return;busy=1;sel=null;
+ const au=new Set(F.filter(f=>!ctl(f)));
+ for(const a of[...U,...F]){
+  if(over)break;if(!alive(a))continue;
+  if(au.has(a))auto(a);
+  else{const p=plan.get(a);if(p){mv(a,p.path);atk(a,p.t);}}
+  draw();await sl(300);
+ }
+ for(const e of[...E].sort(()=>Math.random()-.5)){
+  if(over)break;if(!E.includes(e))continue;
+  eAct(e);draw();await sl(300);
+ }
+ if(!over){
+  const t=turn;
+  if(t<4)spawn(2);else if(t==4){spawn(1);const fr=[...Array(N).keys()].filter(x=>!occ(x,0));E.push({x:fr[Math.random()*fr.length|0],y:0,hp:10,boss:1,type:'E'});lg('ボスが出現！');}
+  turn++;plan=new Map();mode='m';lg('--ターン'+turn+'--');
+ }
+ busy=0;draw();
+}
+cv.onclick=ev=>{
+ if(busy||over)return;
+ const r=cv.getBoundingClientRect(),X=Math.floor((ev.clientX-r.left)/r.width*N),Y=Math.floor((ev.clientY-r.top)/r.height*N);
+ const a=[...U,...F].find(o=>o.x==X&&o.y==Y);
+ if(a&&a!==sel&&(a.type=='U'||ctl(a))){sel=a;mode='m';plan.delete(a);draw();return;}
+ if(!sel){draw();return;}
+ if(mode=='m'){const c=reach(sel).find(c=>c.x==X&&c.y==Y);if(c){plan.set(sel,{path:c.p,dx:c.x,dy:c.y,t:null});mode='a';}}
+ else{const p=plan.get(sel);if(tg(sel,p.dx,p.dy).some(c=>c.x==X&&c.y==Y)){p.t={x:X,y:Y};sel=null;}}
+ draw();
+};
+function dot(o,col,txt){
+ g.fillStyle=col;g.beginPath();g.arc(o.x*S+S/2,o.y*S+S/2,17,0,7);g.fill();
+ g.fillStyle='#001';g.fillText(txt,o.x*S+S/2,o.y*S+S/2);
 }
 function draw(){
-  const b=document.getElementById("board");
-  b.innerHTML="";
-  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
-    const d=document.createElement("button");
-    d.className="c";
-    if(r===TOWN){d.classList.add("town");d.textContent="街";}
-    if(s.warn.some(w=>w[0]===r&&w[1]===c))d.classList.add("warn");
-    if(canMove(r,c))d.classList.add("move");
-    const e=at(r,c);
-    if(e){d.classList.add("foe");d.innerHTML="星<small>HP"+e.hp+"</small>";}
-    if(isU(r,c)){d.classList.add("unit");d.innerHTML="キ<small>HP"+s.uhp+"</small>";}
-    d.addEventListener("click",()=>act(r,c));
-    b.appendChild(d);
-  }
-  document.getElementById("info").innerHTML=
-    "<span>ターン "+s.turn+"/"+TURNS+"</span><span>街 HP "+Math.max(s.town,0)+"</span><span>ユニット HP "+Math.max(s.uhp,0)+"</span>";
-  document.getElementById("msg").textContent=s.msg;
+ g.fillStyle='#14143a';g.fillRect(0,0,528,528);
+ g.strokeStyle='#2a2a60';
+ for(let y=0;y<N;y++)for(let x=0;x<N;x++)g.strokeRect(x*S,y*S,S,S);
+ g.font='bold 16px sans-serif';g.textAlign='center';g.textBaseline='middle';
+ g.fillStyle='#8a6d1f';g.fillRect(0,11*S,528,S);
+ g.fillStyle='#fff';g.fillText('街 HP '+Math.max(city,0)+' / 15',264,11*S+22);
+ if(sel){
+  const L=mode=='m'?reach(sel).map(c=>[c.x,c.y,'#3a6cff77']):tg(sel,plan.get(sel).dx,plan.get(sel).dy).map(c=>[c.x,c.y,'#ff3a3a77']);
+  for(const[x,y,col]of L){g.fillStyle=col;g.fillRect(x*S+1,y*S+1,S-2,S-2);}
+ }
+ plan.forEach(p=>{
+  g.fillStyle='#ffe14a';g.beginPath();g.arc(p.dx*S+S/2,p.dy*S+S/2,5,0,7);g.fill();
+  if(p.t){g.strokeStyle='#ffe14a';g.lineWidth=3;g.strokeRect(p.t.x*S+4,p.t.y*S+4,S-8,S-8);g.lineWidth=1;g.strokeStyle='#2a2a60';}
+ });
+ for(const e of E){const m=e.boss?2:6;g.fillStyle=e.boss?'#a020c0':'#d03030';g.fillRect(e.x*S+m,e.y*S+m,S-2*m,S-2*m);g.fillStyle='#fff';g.fillText(e.hp,e.x*S+S/2,e.y*S+S/2);}
+ for(const u of U)dot(u,'#3ad0ff',u.n+u.hp);
+ for(const f of F)dot(f,ctl(f)?'#7dff7d':'#8a9a8a','★'+f.n);
+ if(sel){g.strokeStyle='#fff';g.lineWidth=3;g.strokeRect(sel.x*S+2,sel.y*S+2,S-4,S-4);g.lineWidth=1;}
+ document.getElementById('st').textContent='ターン'+turn+'　街'+Math.max(city,0)+'　'+U.map(u=>u.nm+u.hp).join(' ')+'　敵'+E.length+'体'+(sel?(mode=='m'?'　移動先をタップ':'　攻撃マスをタップ（なしなら下のボタン）'):'');
+ document.getElementById('log').innerHTML=log.slice(-6).join('<br>');
 }
-document.getElementById("wait").addEventListener("click",()=>act(s.u.r,s.u.c));
-document.getElementById("reset").addEventListener("click",init);
+go.onclick=run;skip.onclick=()=>{sel=null;draw();};rs.onclick=init;
 init();
-</script>
-</body>
-</html>
+</script></body></html>
