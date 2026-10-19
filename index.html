@@ -12,29 +12,30 @@ button:focus-visible{outline:3px solid #ffe14a}
 </style></head><body>
 <div id="st"></div>
 <canvas id="c" width="528" height="528"></canvas>
-<div><button id="go">ターン実行</button><button id="skip">攻撃なし</button><button id="rs">最初から</button></div>
+<div><button id="go">ターン実行</button><button id="sk">スキル</button><button id="skip">攻撃なし</button><button id="un">選び直し</button><button id="cl">全部リセット</button><button id="rs">最初から</button></div>
 <div id="log"></div>
 <script>
 const N=12,S=44,cv=document.getElementById('c'),g=cv.getContext('2d');
-let U,F,E,turn,city,over,busy,sel,mode,plan,log,hpq;
+let U,F,E,B,T,turn,city,over,busy,sel,mode,plan,log,hpq;
 const man=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
-const occ=(x,y)=>[...U,...F,...E].some(o=>o.x==x&&o.y==y);
+const occ=(x,y)=>[...U,...F,...E,...B].some(o=>o.x==x&&o.y==y);
 const eAt=(x,y)=>E.find(o=>o.x==x&&o.y==y);
 const ctl=f=>U.some(u=>man(u,f)<=3);
 const alive=a=>U.includes(a)||F.includes(a);
+const blk=(x,y)=>T[y][x]>0;
 const sl=ms=>new Promise(r=>setTimeout(r,ms));
 const lg=s=>log.push(s);
 function init(){
- U=[{nm:'キュリー',n:'キ',hp:8,x:5,y:8,atk:2,type:'U'},{nm:'A',n:'A',hp:10,x:6,y:8,atk:3,type:'U'}];
+ U=[{nm:'キュリー',n:'キ',hp:8,mh:8,sp:5,x:5,y:8,atk:2,type:'U'},{nm:'A',n:'A',hp:10,mh:10,sp:5,x:6,y:8,atk:3,type:'U'}];
  F=[{nm:'F1',n:5,x:4,y:9,type:'F'},{nm:'F2',n:5,x:7,y:9,type:'F'}];
- E=[];turn=1;city=15;over=0;busy=0;sel=null;mode='m';plan=new Map();log=['ターン1：味方をタップして行動を決め、「ターン実行」'];
+ T=Array.from({length:N},()=>Array(N).fill(0));[[3,4],[4,4],[8,5],[9,5],[6,3],[2,2],[10,7]].forEach(([x,y])=>T[y][x]=1);[[5,6],[6,6],[1,6],[9,8]].forEach(([x,y])=>T[y][x]=2);B=[['砲台',5,3,9],['砲台',5,8,9],['防壁',8,4,10],['防壁',8,7,10],['修理所',4,6,9]].map(([k,hp,x,y])=>({k,nm:k,hp,x,y,type:'B'}));E=[];turn=1;city=15;over=0;busy=0;sel=null;mode='m';plan=new Map();log=['ターン1：味方をタップして行動を決め、「ターン実行」'];
  hpq=[4,3,5,4,3,5,4,3,5];spawn(2);draw();
 }
 function reach(a){
  const k=(x,y)=>x+','+y,s={x:a.x,y:a.y,p:[],s:0},d={[k(a.x,a.y)]:s},q=[s];
  while(q.length){const c=q.shift();if(c.s>=2)continue;
   for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=c.x+dx,ny=c.y+dy;
-   if(nx<0||ny<0||nx>=N||ny>10||d[k(nx,ny)]||occ(nx,ny))continue;
+   if(nx<0||ny<0||nx>=N||ny>10||d[k(nx,ny)]||blk(nx,ny)||occ(nx,ny))continue;
    d[k(nx,ny)]={x:nx,y:ny,p:[...c.p,[nx,ny]],s:c.s+1};q.push(d[k(nx,ny)]);}}
  return Object.values(d);
 }
@@ -48,6 +49,7 @@ function tg(a,px,py){
 function spawn(k){for(let i=0;i<k;i++){const fr=[...Array(N).keys()].filter(x=>!occ(x,0));E.push({x:fr[Math.random()*fr.length|0],y:0,hp:hpq.shift(),type:'E'});}}
 function chk(){if(!over&&(city<=0||!U.length)){over=1;lg('■ゲームオーバー');}}
 function hurt(o,v){
+ if(o.type=='B'){o.hp-=v;if(o.hp<=0){B.splice(B.indexOf(o),1);lg(o.nm+'が壊れた');}return;}
  if(o.type=='U'){o.hp-=v;if(o.hp<=0){U.splice(U.indexOf(o),1);lg(o.nm+'が倒れた');}}
  else{o.n-=v;if(o.n<=0){F.splice(F.indexOf(o),1);lg(o.nm+'が全滅');}}
 }
@@ -55,14 +57,14 @@ function dmg(e,v,who){
  e.hp-=v;lg(who+'→敵に'+v+'ダメージ');
  if(e.hp<=0){E.splice(E.indexOf(e),1);if(e.boss){over=1;lg('★クリア！ボスを倒した！');}}
 }
-function mv(a,path){for(const[px,py]of path){if(occ(px,py))break;a.x=px;a.y=py;}}
+function mv(a,path){for(const[px,py]of path){if(occ(px,py)||blk(px,py))break;a.x=px;a.y=py;}}
 function atk(a,t){
  if(!t)return;
  const d=Math.abs(t.x-a.x)+Math.abs(t.y-a.y);
  if(a.type=='F'){
   if(d<1||d>2||(t.x!=a.x&&t.y!=a.y))return lg(a.nm+'の攻撃は空振り');
   const dx=Math.sign(t.x-a.x),dy=Math.sign(t.y-a.y);
-  for(let i=1;i<=d;i++){const e=eAt(a.x+dx*i,a.y+dy*i);if(e)return dmg(e,a.n,a.nm);}
+  for(let i=1;i<=d;i++){const cx=a.x+dx*i,cy=a.y+dy*i;if(T[cy][cx]==1)break;const e=eAt(cx,cy);if(e)return dmg(e,a.n,a.nm);}
   return lg(a.nm+'の攻撃は空振り');
  }
  const e=eAt(t.x,t.y);
@@ -79,22 +81,35 @@ function auto(f){
 function eAct(e){
  let m=0;
  if(e.y<10){
-  const c=reach(e).reduce((b,c)=>(10-c.y<10-b.y||(c.y==b.y&&Math.abs(c.x-e.x)<Math.abs(b.x-e.x)))?c:b);
+  const D=dfield(),c=reach(e).reduce((b,c)=>(D[c.y][c.x]<D[b.y][b.x]||(D[c.y][c.x]==D[b.y][b.x]&&Math.abs(c.x-e.x)<Math.abs(b.x-e.x)))?c:b);
   mv(e,c.p);m=c.s;
  }
  if(e.y==10){city-=3;lg('敵が街を攻撃！ 街HP'+Math.max(city,0));}
- else if(m<2){const o=[...U,...F].find(o=>man(o,e)==1);if(o){hurt(o,3);lg('敵が'+o.nm+'を攻撃');}}
+ else if(m<2){const o=[...U,...F,...B].find(o=>man(o,e)==1);if(o){hurt(o,3);lg('敵が'+o.nm+'を攻撃');}}
  chk();
 }
+function dfield(){const d=Array.from({length:N},()=>Array(N).fill(99)),q=[];for(let x=0;x<N;x++)if(!blk(x,10)){d[10][x]=0;q.push([x,10]);}
+while(q.length){const[x,y]=q.shift();for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=N||ny>10||blk(nx,ny)||d[ny][nx]<99)continue;d[ny][nx]=d[y][x]+1;q.push([nx,ny]);}}return d;}
+const cost=a=>a.nm=='A'?2:3;
+function skt(a,px,py){if(a.nm!='A')return tg(a,px,py);const r=[];for(let y=0;y<=10;y++)for(let x=0;x<N;x++){const d=Math.abs(x-px)+Math.abs(y-py);if(d>=1&&d<=3&&(x==px||y==py))r.push({x,y});}return r;}
+function skill(a,t){a.sp-=cost(a);const d=Math.abs(t.x-a.x)+Math.abs(t.y-a.y);
+if(a.nm!='A'){if(d<1||d>3)return lg('スキルは空振り');lg('キュリーの星屑の流星！');for(const[ox,oy]of[[0,0],[1,0],[-1,0],[0,1],[0,-1]]){const e=eAt(t.x+ox,t.y+oy);if(e)dmg(e,3,'流星');}return;}
+if(d<1||d>3||(t.x!=a.x&&t.y!=a.y))return lg('スキルは空振り');lg('Aの突撃！');const dx=Math.sign(t.x-a.x),dy=Math.sign(t.y-a.y);let lx=a.x,ly=a.y;
+for(let i=1;i<=d;i++){const cx=a.x+dx*i,cy=a.y+dy*i;if(cx<0||cy<0||cx>=N||cy>10||blk(cx,cy)||[...U,...F,...B].some(o=>o.x==cx&&o.y==cy))break;const e=eAt(cx,cy);if(e)dmg(e,4,'突撃');if(!eAt(cx,cy)){lx=cx;ly=cy;}}
+a.x=lx;a.y=ly;}
 async function run(){
  if(busy||over)return;busy=1;sel=null;
  const au=new Set(F.filter(f=>!ctl(f)));
  for(const a of[...U,...F]){
   if(over)break;if(!alive(a))continue;
   if(au.has(a))auto(a);
-  else{const p=plan.get(a);if(p){mv(a,p.path);atk(a,p.t);}}
+  else{const p=plan.get(a);if(p){mv(a,p.path);if(p.sk&&a.sp>=cost(a))skill(a,p.t);else atk(a,p.t);}}
   draw();await sl(300);
  }
+ for(const b of[...B]){if(over)break;if(!B.includes(b))continue;let did=0;
+  if(b.k=='砲台'){const e=E.filter(e=>man(b,e)<=3).sort((p,q)=>man(b,p)-man(b,q))[0];if(e){dmg(e,2,'砲台');did=1;}}
+  else if(b.k=='修理所'){for(const u of U)if(man(b,u)<=2&&u.hp<u.mh){u.hp++;did=1;}for(const f of F)if(man(b,f)<=2&&f.n<5){f.n++;did=1;}if(did)lg('修理所が味方を回復');}
+  if(did){draw();await sl(300);}}
  for(const e of[...E].sort(()=>Math.random()-.5)){
   if(over)break;if(!E.includes(e))continue;
   eAct(e);draw();await sl(300);
@@ -102,7 +117,7 @@ async function run(){
  if(!over){
   const t=turn;
   if(t<4)spawn(2);else if(t==4){spawn(1);const fr=[...Array(N).keys()].filter(x=>!occ(x,0));E.push({x:fr[Math.random()*fr.length|0],y:0,hp:10,boss:1,type:'E'});lg('ボスが出現！');}
-  turn++;plan=new Map();mode='m';lg('--ターン'+turn+'--');
+  turn++;U.forEach(u=>u.sp=Math.min(5,u.sp+1));plan=new Map();mode='m';lg('--ターン'+turn+'--');
  }
  busy=0;draw();
 }
@@ -110,10 +125,10 @@ cv.onclick=ev=>{
  if(busy||over)return;
  const r=cv.getBoundingClientRect(),X=Math.floor((ev.clientX-r.left)/r.width*N),Y=Math.floor((ev.clientY-r.top)/r.height*N);
  const a=[...U,...F].find(o=>o.x==X&&o.y==Y);
- if(a&&a!==sel&&(a.type=='U'||ctl(a))){sel=a;mode='m';plan.delete(a);draw();return;}
+ if(a&&a!==sel&&(a.type=='U'||ctl(a))){sel=a;mode='m';draw();return;}
  if(!sel){draw();return;}
  if(mode=='m'){const c=reach(sel).find(c=>c.x==X&&c.y==Y);if(c){plan.set(sel,{path:c.p,dx:c.x,dy:c.y,t:null});mode='a';}}
- else{const p=plan.get(sel);if(tg(sel,p.dx,p.dy).some(c=>c.x==X&&c.y==Y)){p.t={x:X,y:Y};sel=null;}}
+ else{const p=plan.get(sel),L=mode=='s'?skt(sel,p.dx,p.dy):tg(sel,p.dx,p.dy);if(L.some(c=>c.x==X&&c.y==Y)){p.t={x:X,y:Y};p.sk=mode=='s';sel=null;}}
  draw();
 };
 function dot(o,col,txt){
@@ -124,24 +139,26 @@ function draw(){
  g.fillStyle='#14143a';g.fillRect(0,0,528,528);
  g.strokeStyle='#2a2a60';
  for(let y=0;y<N;y++)for(let x=0;x<N;x++)g.strokeRect(x*S,y*S,S,S);
+ for(let y=0;y<N;y++)for(let x=0;x<N;x++)if(T[y][x]){g.fillStyle=T[y][x]==1?'#6a6a85':'#03030c';g.fillRect(x*S+1,y*S+1,S-2,S-2);}
  g.font='bold 16px sans-serif';g.textAlign='center';g.textBaseline='middle';
  g.fillStyle='#8a6d1f';g.fillRect(0,11*S,528,S);
  g.fillStyle='#fff';g.fillText('街 HP '+Math.max(city,0)+' / 15',264,11*S+22);
  if(sel){
-  const L=mode=='m'?reach(sel).map(c=>[c.x,c.y,'#3a6cff77']):tg(sel,plan.get(sel).dx,plan.get(sel).dy).map(c=>[c.x,c.y,'#ff3a3a77']);
+  const L=mode=='m'?reach(sel).map(c=>[c.x,c.y,'#3a6cff77']):(mode=='s'?skt:tg)(sel,plan.get(sel).dx,plan.get(sel).dy).map(c=>[c.x,c.y,mode=='s'?'#c03aff77':'#ff3a3a77']);
   for(const[x,y,col]of L){g.fillStyle=col;g.fillRect(x*S+1,y*S+1,S-2,S-2);}
  }
  plan.forEach(p=>{
   g.fillStyle='#ffe14a';g.beginPath();g.arc(p.dx*S+S/2,p.dy*S+S/2,5,0,7);g.fill();
   if(p.t){g.strokeStyle='#ffe14a';g.lineWidth=3;g.strokeRect(p.t.x*S+4,p.t.y*S+4,S-8,S-8);g.lineWidth=1;g.strokeStyle='#2a2a60';}
  });
+ for(const b of B){g.fillStyle=b.k=='砲台'?'#e08a20':b.k=='防壁'?'#9a7b4f':'#30c080';g.fillRect(b.x*S+3,b.y*S+3,S-6,S-6);g.fillStyle='#001';g.fillText(b.k[0]+b.hp,b.x*S+S/2,b.y*S+S/2);}
  for(const e of E){const m=e.boss?2:6;g.fillStyle=e.boss?'#a020c0':'#d03030';g.fillRect(e.x*S+m,e.y*S+m,S-2*m,S-2*m);g.fillStyle='#fff';g.fillText(e.hp,e.x*S+S/2,e.y*S+S/2);}
  for(const u of U)dot(u,'#3ad0ff',u.n+u.hp);
  for(const f of F)dot(f,ctl(f)?'#7dff7d':'#8a9a8a','★'+f.n);
  if(sel){g.strokeStyle='#fff';g.lineWidth=3;g.strokeRect(sel.x*S+2,sel.y*S+2,S-4,S-4);g.lineWidth=1;}
- document.getElementById('st').textContent='ターン'+turn+'　街'+Math.max(city,0)+'　'+U.map(u=>u.nm+u.hp).join(' ')+'　敵'+E.length+'体'+(sel?(mode=='m'?'　移動先をタップ':'　攻撃マスをタップ（なしなら下のボタン）'):'');
+ document.getElementById('st').textContent='ターン'+turn+'　街'+Math.max(city,0)+'　'+U.map(u=>u.nm+u.hp+'(SP'+u.sp+')').join(' ')+'　敵'+E.length+'体'+(sel?(mode=='m'?'　移動先をタップ':'　攻撃マスをタップ（なしなら下のボタン）'):'');
  document.getElementById('log').innerHTML=log.slice(-6).join('<br>');
 }
-go.onclick=run;skip.onclick=()=>{sel=null;draw();};rs.onclick=init;
+sk.onclick=()=>{if(sel&&sel.type=='U'&&mode=='a'&&sel.sp>=cost(sel))mode='s';draw();};un.onclick=()=>{if(busy||over)return;if(sel){plan.delete(sel);mode='m';}draw();};cl.onclick=()=>{if(busy||over)return;plan=new Map();sel=null;mode='m';draw();};go.onclick=run;skip.onclick=()=>{sel=null;draw();};rs.onclick=init;
 init();
 </script></body></html>
