@@ -22,7 +22,7 @@ const occ=(x,y)=>[...U,...F,...E,...B].some(o=>o.x==x&&o.y==y);
 const eAt=(x,y)=>E.find(o=>o.x==x&&o.y==y);
 const ctl=f=>U.some(u=>man(u,f)<=3);
 const alive=a=>U.includes(a)||F.includes(a);
-const cc=(v,m)=>Math.max(-2,Math.min(m+2,v));
+const EX=4,cc=(v,m)=>Math.max(-VW/2-EX,Math.min(m+VW/2+EX,v));
 const ft=(t,x,y)=>{const p=g.getTransform().transformPoint({x,y});g.save();g.setTransform(1,0,0,1,0,0);g.fillText(t,p.x,p.y);g.restore();};
 const blk=(x,y)=>T[y][x]>0;
 const sl=ms=>new Promise(r=>setTimeout(r,ms));
@@ -143,7 +143,7 @@ cv.onpointercancel=()=>{pd=null;};
 function mini(){const m=4,mx=528-W*m-4,my=4;g.fillStyle='#000a';g.fillRect(mx-1,my-1,W*m+2,H*m+2);
  for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(T[y][x]){g.fillStyle=T[y][x]==1?'#889':'#000';g.fillRect(mx+x*m,my+y*m,m,m);}
  for(const[a,c]of[[B,'#e0a030'],[E,'#ff4040'],[F,'#7dff7d'],[U,'#3ad0ff']])for(const o of a){g.fillStyle=c;g.fillRect(mx+o.x*m,my+o.y*m,m,m);}
- g.strokeStyle='#fff';g.lineWidth=1;g.strokeRect(mx+camX*m,my+camY*m,VW*m,VH*m);}
+ g.save();g.beginPath();g.rect(mx-1,my-1,W*m+2,H*m+2);g.clip();g.strokeStyle='#fff';g.lineWidth=1;g.strokeRect(mx+camX*m,my+camY*m,VW*m,VH*m);g.restore();}
 function dot(o,col,txt){
  g.fillStyle=col;g.beginPath();g.arc(o.x*S+S/2,o.y*S+S/2,17,0,7);g.fill();
  g.fillStyle='#001';ft(txt,o.x*S+S/2,o.y*S+S/2);
