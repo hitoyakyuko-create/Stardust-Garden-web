@@ -11,9 +11,11 @@ const blk=(x,y)=>T[y][x]>0;
 const sl=ms=>new Promise(r=>setTimeout(r,ms));
 const lg=s=>log.push(s);
 const cost=a=>a.skill.cost;
+// 向き：画面上で右へ進む／右の相手なら'r'、左なら'l'
+const faceTo=(a,t)=>{const s=(t.x-a.x)-(t.y-a.y);if(s)a.face=s>0?'r':'l';};
 const topX=()=>{const fr=[...Array(W).keys()].filter(x=>!occ(x,0));return fr[Math.random()*fr.length|0];};
 function init(){
- U=DATA.units.map(d=>({...d,mh:d.hp,sp:R.spInit,x:d.x+OX,y:d.y+OY,type:'U'}));
+ U=DATA.units.map(d=>({...d,mh:d.hp,sp:R.spInit,x:d.x+OX,y:d.y+OY,face:'r',type:'U'}));
  F=DATA.fragments.map(d=>({...d,x:d.x+OX,y:d.y+OY,type:'F'}));
  T=Array.from({length:H},()=>Array(W).fill(0));
  for(const t of DATA.terrain){
@@ -52,9 +54,10 @@ function dmg(e,v,who){
  e.hp-=v;lg(who+'→敵に'+v+'ダメージ');
  if(e.hp<=0){E.splice(E.indexOf(e),1);if(e.boss){over=1;lg('★クリア！ボスを倒した！');}}
 }
-function mv(a,path){for(const[px,py]of path){if(occ(px,py)||blk(px,py))break;a.x=px;a.y=py;}}
+function mv(a,path){for(const[px,py]of path){if(occ(px,py)||blk(px,py))break;a.face=((px-a.x)-(py-a.y))>0?'r':'l';a.x=px;a.y=py;}}
 function atk(a,t){
  if(!t)return;
+ faceTo(a,t);
  const d=man(a,t);
  if(a.type=='F'){
   if(d<1||d>2||(t.x!=a.x&&t.y!=a.y))return lg(a.nm+'の攻撃は空振り');
@@ -90,7 +93,7 @@ function dfield(){const d=Array.from({length:H},()=>Array(W).fill(99)),q=[];for(
 function skt(a,px,py){const sk=a.skill,r=[];for(let y=0;y<=CY;y++)for(let x=0;x<W;x++){const d=Math.abs(x-px)+Math.abs(y-py);if(d>=1&&d<=sk.range&&(sk.shape!='line'||x==px||y==py))r.push({x,y});}return r;}
 // スキルの種類ごとの処理（burst＝着弾点と上下左右、charge＝直線に突進）
 function skill(a,t){
- const sk=a.skill;a.sp-=sk.cost;const d=man(a,t);
+ const sk=a.skill;a.sp-=sk.cost;faceTo(a,t);const d=man(a,t);
  if(sk.type=='burst'){
   if(d<1||d>sk.range)return lg('スキルは空振り');
   lg(a.nm+'の'+sk.name+'！');

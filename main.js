@@ -24,4 +24,5 @@ btn('cl').onclick=()=>{if(busy||over)return;plan=new Map();sel=null;mode='m';dra
 btn('go').onclick=run;
 btn('skip').onclick=()=>{sel=null;draw();};
 btn('rs').onclick=init;
+loadSprites();
 init();

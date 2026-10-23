@@ -1,6 +1,19 @@
 // 描画（見た目の処理）。色や大きさは data.js の gfx で変更する
 const G=DATA.gfx,C=G.colors,CW=G.canvasW,CH=G.canvasH,TW=G.tileW,TH=G.tileH,S=G.cell;
 const cv=document.getElementById('c'),g=cv.getContext('2d');
+// ユニット画像（SPR＝読み込んだ画像の入れ物）。無い・読めない場合は丸アイコンのまま表示する
+const SPR={};
+function loadSprites(){for(const key of new Set(DATA.units.map(u=>u.sprite).filter(Boolean))){SPR[key]={};
+ for(const d of['r','l']){const o=SPR[key][d]={ok:false,img:new Image()};o.img.onload=()=>{o.ok=true;draw();};o.img.src=key+'_'+d+'.png';}}}
+// 向きに合う画像を選ぶ（_lが無ければ_rを左右反転）
+function pick(u){const s=SPR[u.sprite];if(!s)return null;const l=u.face=='l';
+ if(l&&s.l.ok)return{img:s.l.img,flip:false};if(s.r.ok)return{img:s.r.img,flip:l};return null;}
+function spr(u,pk){const P=G.sprite,p=g.getTransform().transformPoint({x:u.x*S+S/2,y:u.y*S+S/2}),d=TW*P.scale,k=d/192,top=p.y-(192-P.feet)*k;
+ g.save();g.setTransform(1,0,0,1,0,0);
+ g.fillStyle=P.shadow;g.beginPath();g.ellipse(p.x,p.y+2,TW*.3,TH*.3,0,0,7);g.fill();
+ if(pk.flip){g.translate(p.x,0);g.scale(-1,1);g.drawImage(pk.img,-d/2,top,d,d);}else g.drawImage(pk.img,p.x-d/2,top,d,d);
+ g.setTransform(1,0,0,1,0,0);g.font='bold 13px sans-serif';g.lineWidth=3;g.strokeStyle=C.textDark;g.strokeText(u.nm+' '+u.hp,p.x,p.y+TH*.5);g.fillStyle=C.textLight;g.fillText(u.nm+' '+u.hp,p.x,p.y+TH*.5);
+ g.restore();}
 const EX=4,cc=(v,m)=>Math.max(-VW/2-EX,Math.min(m+VW/2+EX,v));
 const ft=(t,x,y)=>{const p=g.getTransform().transformPoint({x,y});g.save();g.setTransform(1,0,0,1,0,0);g.fillText(t,p.x,p.y);g.restore();};
 function mini(){const M=G.mini,m=M.scale,mx=CW-W*m-4,my=4;g.fillStyle='#000a';g.fillRect(mx-1,my-1,W*m+2,H*m+2);
@@ -30,7 +43,7 @@ function draw(){
  });
  for(const b of B){g.fillStyle=DATA.buildingTypes[b.k].color;g.fillRect(b.x*S+3,b.y*S+3,S-6,S-6);g.fillStyle=C.textDark;ft(b.k[0]+b.hp,b.x*S+S/2,b.y*S+S/2);}
  for(const e of E){const m=e.boss?2:6;g.fillStyle=e.boss?C.boss:C.enemy;g.fillRect(e.x*S+m,e.y*S+m,S-2*m,S-2*m);g.fillStyle=C.textLight;ft(e.hp,e.x*S+S/2,e.y*S+S/2);}
- for(const u of U)dot(u,C.unit,u.n+u.hp);
+ for(const u of[...U].sort((a,b)=>(a.x+a.y)-(b.x+b.y))){const pk=pick(u);if(pk)spr(u,pk);else dot(u,C.unit,u.n+u.hp);}
  for(const f of F)dot(f,ctl(f)?C.fragOn:C.fragOff,'★'+f.n);
  if(sel){g.strokeStyle=C.select;g.lineWidth=3;g.strokeRect(sel.x*S+2,sel.y*S+2,S-4,S-4);g.lineWidth=1;}
  g.restore();mini();

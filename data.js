@@ -13,7 +13,7 @@ rules:{
 },
 // ユニット：range=通常攻撃の届く距離、skill=スキル設定
 units:[
- {nm:'キュリー',n:'キ',hp:8,atk:2,range:3,x:5,y:8,
+ {nm:'キュリー',n:'キ',hp:8,atk:2,range:3,x:5,y:8,sprite:'unit_curie_normal_idle',
   skill:{name:'星屑の流星',type:'burst',cost:3,range:3,dmg:3,who:'流星'}},
  {nm:'A',n:'A',hp:10,atk:3,range:1,x:6,y:8,
   skill:{name:'突撃',type:'charge',cost:2,range:3,dmg:4,shape:'line',who:'突撃'}}
@@ -50,6 +50,8 @@ gfx:{
   unit:'#3ad0ff',fragOn:'#7dff7d',fragOff:'#8a9a8a',enemy:'#d03030',boss:'#a020c0',
   move:'#3a6cff77',attack:'#ff3a3a77',skill:'#c03aff77',plan:'#ffe14a',select:'#fff',
   textDark:'#001',textLight:'#fff'},
- mini:{scale:4,obstacle:'#889',hole:'#000',building:'#e0a030',enemy:'#ff4040',fragment:'#7dff7d',unit:'#3ad0ff'}
+ mini:{scale:4,obstacle:'#889',hole:'#000',building:'#e0a030',enemy:'#ff4040',fragment:'#7dff7d',unit:'#3ad0ff'},
+ // ユニット画像：scale＝マス幅に対する表示倍率、feet＝画像下端から足元までのpx、shadow＝足元の影の色
+ sprite:{scale:1.4,feet:4,shadow:'rgba(150,170,255,0.30)'}
 }
 };
