@@ -8,7 +8,7 @@ function loadSprites(){for(const key of new Set(DATA.units.map(u=>u.sprite).filt
 // 向きに合う画像を選ぶ（_lが無ければ_rを左右反転）
 function pick(u){const s=SPR[u.sprite];if(!s)return null;const l=u.face=='l';
  if(l&&s.l.ok)return{img:s.l.img,flip:false};if(s.r.ok)return{img:s.r.img,flip:l};return null;}
-function spr(u,pk){const P=G.sprite,p=g.getTransform().transformPoint({x:u.x*S+S/2,y:u.y*S+S/2}),d=TW*P.scale,k=d/192,top=p.y-(192-P.feet)*k;
+function spr(u,pk){const P=G.sprite,p=g.getTransform().transformPoint({x:u.x*S+S/2,y:u.y*S+S/2}),d=TW*P.scale,k=d/192,top=p.y-(192-P.feet)*k+P.drop;
  g.save();g.setTransform(1,0,0,1,0,0);
  g.fillStyle=P.shadow;g.beginPath();g.ellipse(p.x,p.y+2,TW*.3,TH*.3,0,0,7);g.fill();
  if(pk.flip){g.translate(p.x,0);g.scale(-1,1);g.drawImage(pk.img,-d/2,top,d,d);}else g.drawImage(pk.img,p.x-d/2,top,d,d);

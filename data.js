@@ -51,7 +51,7 @@ gfx:{
   move:'#3a6cff77',attack:'#ff3a3a77',skill:'#c03aff77',plan:'#ffe14a',select:'#fff',
   textDark:'#001',textLight:'#fff'},
  mini:{scale:4,obstacle:'#889',hole:'#000',building:'#e0a030',enemy:'#ff4040',fragment:'#7dff7d',unit:'#3ad0ff'},
- // ユニット画像：scale＝マス幅に対する表示倍率、feet＝画像下端から足元までのpx、shadow＝足元の影の色
- sprite:{scale:1.4,feet:4,shadow:'rgba(150,170,255,0.30)'}
+ // ユニット画像：scale＝マス幅に対する表示倍率、feet＝画像下端から足元までのpx、drop＝画像を下へずらす量（大きいほど低く立つ）、shadow＝足元の影の色
+ sprite:{scale:1.4,feet:4,drop:6,shadow:'rgba(150,170,255,0.30)'}
 }
 };
