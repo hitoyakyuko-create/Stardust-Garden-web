@@ -25,4 +25,5 @@ btn('go').onclick=run;
 btn('skip').onclick=()=>{sel=null;draw();};
 btn('rs').onclick=init;
 loadSprites();
+loadImages();
 init();

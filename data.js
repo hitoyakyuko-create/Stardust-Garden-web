@@ -23,8 +23,8 @@ fragments:[{nm:'F1',n:5,x:4,y:9},{nm:'F2',n:5,x:7,y:9}],
 terrain:[
  {v:1,rel:[[3,4],[4,4],[8,5],[9,5],[6,3],[2,2],[10,7]]},
  {v:1,abs:[[3,3],[4,3],[15,4],[16,4],[9,6],[10,6],[7,9],[12,10]]},
- {v:2,abs:[[8,2],[9,2],[14,8],[2,8]]},
- {v:2,rel:[[5,6],[6,6],[1,6],[9,8]]}
+ {v:2,img:'tile_hollow_void',abs:[[8,2],[9,2],[14,8],[2,8]]},
+ {v:2,img:'tile_hollow_pond',rel:[[5,6],[6,6],[1,6],[9,8]]}
 ],
 // 防衛機関の配置
 buildings:[
@@ -52,6 +52,10 @@ gfx:{
   textDark:'#001',textLight:'#fff'},
  mini:{scale:4,obstacle:'#889',hole:'#000',building:'#e0a030',enemy:'#ff4040',fragment:'#7dff7d',unit:'#3ad0ff'},
  // ユニット画像：scale＝マス幅に対する表示倍率、feet＝画像下端から足元までのpx、drop＝画像を下へずらす量（大きいほど低く立つ）、shadow＝足元の影の色
- sprite:{scale:1.4,feet:4,drop:6,shadow:'rgba(150,170,255,0.30)'}
+ sprite:{scale:1.4,feet:4,drop:6,shadow:'rgba(150,170,255,0.30)'},
+ // 地形画像：通常タイル、岩（隣り合う障害物は自動で2マス・4マスの岩にまとまる）
+ tiles:{a:'tile_normal_a',b:'tile_normal_b'},
+ rocks:{single:['obj_rock_a','obj_rock_b','obj_rock_c'],x:'obj_rock2_x',y:'obj_rock2_y',block:'obj_rock4_a'},
+ ghostAlpha:0.55   // 岩の後ろに隠れた部分の半透明の濃さ（0で無効）
 }
 };

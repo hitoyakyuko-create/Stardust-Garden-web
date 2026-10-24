@@ -1,7 +1,7 @@
 // ゲームのルール処理（見た目の描画は render.js）
-const R=DATA.rules,W=R.mapW,H=R.mapH,CY=H-2,VW=R.viewW,VH=R.viewH;
+const G0=DATA.gfx,R=DATA.rules,W=R.mapW,H=R.mapH,CY=H-2,VW=R.viewW,VH=R.viewH;
 const OX=(W-R.protoSize)>>1,OY=H-R.protoSize;
-let camX,camY,pd,U,F,E,B,T,turn,city,over,busy,sel,mode,plan,log,hpq;
+let camX,camY,pd,U,F,E,B,T,TI,OB,turn,city,over,busy,sel,mode,plan,log,hpq;
 const man=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
 const occ=(x,y)=>[...U,...F,...E,...B].some(o=>o.x==x&&o.y==y);
 const eAt=(x,y)=>E.find(o=>o.x==x&&o.y==y);
@@ -17,15 +17,27 @@ const topX=()=>{const fr=[...Array(W).keys()].filter(x=>!occ(x,0));return fr[Mat
 function init(){
  U=DATA.units.map(d=>({...d,mh:d.hp,sp:R.spInit,x:d.x+OX,y:d.y+OY,face:'r',type:'U'}));
  F=DATA.fragments.map(d=>({...d,x:d.x+OX,y:d.y+OY,type:'F'}));
- T=Array.from({length:H},()=>Array(W).fill(0));
+ T=Array.from({length:H},()=>Array(W).fill(0));TI=Array.from({length:H},()=>Array(W).fill(null));
  for(const t of DATA.terrain){
-  for(const[x,y]of t.abs||[])T[y][x]=t.v;
-  for(const[x,y]of t.rel||[])T[y+OY][x+OX]=t.v;
+  for(const[x,y]of t.abs||[]){T[y][x]=t.v;if(t.img)TI[y][x]=t.img;}
+  for(const[x,y]of t.rel||[]){T[y+OY][x+OX]=t.v;if(t.img)TI[y+OY][x+OX]=t.img;}
  }
  B=DATA.buildings.map(b=>({k:b.k,nm:b.k,hp:b.hp,x:b.x+OX,y:b.y+OY,type:'B'}));
+ OB=buildObjects();
  camX=(W-VW)/2;camY=H-VH;E=[];turn=1;city=R.cityHp;over=0;busy=0;sel=null;mode='m';plan=new Map();
  log=['ターン1：味方をタップして行動を決め、「ターン実行」'];
  hpq=[...DATA.enemy.hpQueue];spawn(DATA.waves.initial);draw();
+}
+// 隣り合う障害物を、まとめて1つの岩として扱う（2×2→4マス、横2→2x、縦2→2y、他は1マス）
+function buildObjects(){
+ const seen=new Set(),k=(x,y)=>x+','+y,ok=(x,y)=>x>=0&&y>=0&&x<W&&y<H&&T[y][x]==1&&!seen.has(k(x,y)),O=[],RK=G0.rocks;
+ const take=(img,ts)=>{ts.forEach(([x,y])=>seen.add(k(x,y)));O.push({img,tiles:ts,key:Math.max(...ts.map(([x,y])=>x+y))});};
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){if(!ok(x,y))continue;
+  if(ok(x+1,y)&&ok(x,y+1)&&ok(x+1,y+1))take(RK.block,[[x,y],[x+1,y],[x,y+1],[x+1,y+1]]);
+  else if(ok(x+1,y))take(RK.x,[[x,y],[x+1,y]]);
+  else if(ok(x,y+1))take(RK.y,[[x,y],[x,y+1]]);
+  else take(RK.single[(x*7+y*13)%RK.single.length],[[x,y]]);}
+ return O;
 }
 function reach(a){
  const k=(x,y)=>x+','+y,s={x:a.x,y:a.y,p:[],s:0},d={[k(a.x,a.y)]:s},q=[s];
