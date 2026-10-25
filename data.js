@@ -38,6 +38,20 @@ buildingTypes:{
  '防壁':{color:'#9a7b4f'},
  '修理所':{color:'#30c080',act:{type:'repair',range:2,heal:1,fragAdd:1}}
 },
+// 1日の流れ：朝・昼・夕に行動を1回ずつ選び、夜に防衛バトル
+day:{
+ days:3,                              // 試作は3日で終了
+ slots:['朝','昼','夕'],              // 時間帯
+ slotEvents:['朝の光が町に差し込む。','昼の星屑が静かに降っている。','夕暮れ。今夜も敵が来そうだ。'],
+ // A〜Hの仮コマンド（fx＝選んだときの効果。無ければ文章を出すだけ）
+ commands:[
+  {id:'A',nm:'A（仮）',text:'Aを選んだ。'},{id:'B',nm:'B（仮）',text:'Bを選んだ。'},
+  {id:'C',nm:'C（仮）',text:'Cを選んだ。'},{id:'D',nm:'D（仮）',text:'Dを選んだ。'},
+  {id:'E',nm:'E（仮）',text:'Eを選んだ。'},{id:'F',nm:'F（仮）',text:'Fを選んだ。'},
+  {id:'G',nm:'G（仮）',text:'Gを選んだ。'},
+  {id:'H',nm:'H（修復・仮）',text:'町を修復した。',fx:{city:3,bld:2}}   // 街HP+3、防衛機関HP+2
+ ]
+},
 enemy:{atk:3,hpQueue:[4,3,5,4,3,5,4,3,5]},  // hpQueue＝出現する敵のHPを順番に並べたもの
 waves:{initial:2,perTurn:2,bossTurn:4,normalAtBoss:1,bossHp:10},
 // 見た目の設定

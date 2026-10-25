@@ -23,7 +23,20 @@ btn('un').onclick=()=>{if(busy||over)return;if(sel){plan.delete(sel);mode='m';}d
 btn('cl').onclick=()=>{if(busy||over)return;plan=new Map();sel=null;mode='m';draw();};
 btn('go').onclick=run;
 btn('skip').onclick=()=>{sel=null;draw();};
-btn('rs').onclick=init;
+btn('rs').onclick=()=>newGame();
+// ===== 日常画面と、日常⇔バトルの切り替え =====
+function show(battle){btn('day').hidden=battle;btn('battle').hidden=!battle;}
+function showDay(){
+ show(false);
+ const v=dayView();
+ btn('st').textContent=v.st;btn('dayTitle').textContent=v.title;btn('dayText').textContent=v.text;
+ const box=btn('dayBtns');box.innerHTML='';
+ for(const b of v.btns){const e=document.createElement('button');e.textContent=b.l;e.onclick=()=>{b.f();showDay();};box.appendChild(e);}
+}
+function newGame(){SV=newSave();showDay();}
+function startBattle(){show(true);btn('dawn').hidden=true;init(SV);}   // 夜のバトル（前日からの持ち越し付き）
+function endBattle(){btn('dawn').hidden=false;}                       // バトルが終わったら「夜明けへ」を出す
+btn('dawn').onclick=()=>{if(won){saveBattle();SV.step='clear';}else SV.step='lose';showDay();};
 loadSprites();
 loadImages();
-init();
+newGame();

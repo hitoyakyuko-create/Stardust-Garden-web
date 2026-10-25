@@ -1,7 +1,7 @@
 // ゲームのルール処理（見た目の描画は render.js）
 const G0=DATA.gfx,R=DATA.rules,W=R.mapW,H=R.mapH,CY=H-2,VW=R.viewW,VH=R.viewH;
 const OX=(W-R.protoSize)>>1,OY=H-R.protoSize;
-let camX,camY,pd,U,F,E,B,T,TI,OB,turn,city,over,busy,sel,mode,plan,log,hpq;
+let camX,camY,pd,U,F,E,B,T,TI,OB,turn,city,over,won,busy,sel,mode,plan,log,hpq;
 const man=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
 const occ=(x,y)=>[...U,...F,...E,...B].some(o=>o.x==x&&o.y==y);
 const eAt=(x,y)=>E.find(o=>o.x==x&&o.y==y);
@@ -14,7 +14,7 @@ const cost=a=>a.skill.cost;
 // 向き：画面上で右へ進む／右の相手なら'r'、左なら'l'
 const faceTo=(a,t)=>{const s=(t.x-a.x)-(t.y-a.y);if(s)a.face=s>0?'r':'l';};
 const topX=()=>{const fr=[...Array(W).keys()].filter(x=>!occ(x,0));return fr[Math.random()*fr.length|0];};
-function init(){
+function init(c){
  U=DATA.units.map(d=>({...d,mh:d.hp,sp:R.spInit,x:d.x+OX,y:d.y+OY,face:'r',type:'U'}));
  F=DATA.fragments.map(d=>({...d,x:d.x+OX,y:d.y+OY,type:'F'}));
  T=Array.from({length:H},()=>Array(W).fill(0));TI=Array.from({length:H},()=>Array(W).fill(null));
@@ -22,9 +22,9 @@ function init(){
   for(const[x,y]of t.abs||[]){T[y][x]=t.v;if(t.img)TI[y][x]=t.img;}
   for(const[x,y]of t.rel||[]){T[y+OY][x+OX]=t.v;if(t.img)TI[y+OY][x+OX]=t.img;}
  }
- B=DATA.buildings.map(b=>({k:b.k,nm:b.k,hp:b.hp,x:b.x+OX,y:b.y+OY,type:'B'}));
+ B=(c?c.B:DATA.buildings.map(b=>({...b,mh:b.hp}))).map(b=>({k:b.k,nm:b.k,hp:b.hp,mh:b.mh,x:b.x+OX,y:b.y+OY,type:'B'}));  // c＝前の日からの持ち越し
  OB=buildObjects();
- camX=(W-VW)/2;camY=H-VH;E=[];turn=1;city=R.cityHp;over=0;busy=0;sel=null;mode='m';plan=new Map();
+ camX=(W-VW)/2;camY=H-VH;E=[];turn=1;city=c?c.city:R.cityHp;over=0;won=0;busy=0;sel=null;mode='m';plan=new Map();
  log=['ターン1：味方をタップして行動を決め、「ターン実行」'];
  hpq=[...DATA.enemy.hpQueue];spawn(DATA.waves.initial);draw();
 }
@@ -64,7 +64,7 @@ function hurt(o,v){
 }
 function dmg(e,v,who){
  e.hp-=v;lg(who+'→敵に'+v+'ダメージ');
- if(e.hp<=0){E.splice(E.indexOf(e),1);if(e.boss){over=1;lg('★クリア！ボスを倒した！');}}
+ if(e.hp<=0){E.splice(E.indexOf(e),1);if(e.boss){over=1;won=1;lg('★クリア！ボスを倒した！');}}
 }
 function mv(a,path){for(const[px,py]of path){if(occ(px,py)||blk(px,py))break;a.face=((px-a.x)-(py-a.y))>0?'r':'l';a.x=px;a.y=py;}}
 function atk(a,t){
@@ -146,4 +146,35 @@ async function run(){
   turn++;U.forEach(u=>u.sp=Math.min(R.spMax,u.sp+R.spRegen));plan=new Map();mode='m';lg('--ターン'+turn+'--');
  }
  busy=0;draw();
+ if(over)endBattle();
+}
+
+// ===== 1日の流れ（セーブデータ SV に全部まとめる。座標は rel 基準）=====
+let SV;
+function newSave(){return{day:1,slot:0,step:'ev',city:R.cityHp,B:DATA.buildings.map(b=>({k:b.k,hp:b.hp,mh:b.hp,x:b.x,y:b.y})),msg:''};}
+// 行動の効果を適用して、結果の文章を返す
+function applyCmd(c){
+ let t=c.text;
+ if(c.fx){SV.city=Math.min(R.cityHp,SV.city+c.fx.city);SV.B.forEach(b=>b.hp=Math.min(b.mh,b.hp+c.fx.bld));t+='（街HP'+SV.city+'）';}
+ return t;
+}
+// バトル結果をセーブデータへ書き戻す（街HPと生き残った防衛機関を持ち越す）
+function saveBattle(){SV.city=Math.max(city,0);SV.B=B.map(b=>({k:b.k,hp:b.hp,mh:b.mh,x:b.x-OX,y:b.y-OY}));}
+// いまの場面の表示内容を返す（描き方は main.js）
+function dayView(){
+ const D=DATA.day,sl=D.slots[SV.slot],hd=SV.day+'日目 '+sl,go=(step,f)=>()=>{SV.step=step;if(f)f();};
+ const st=hd+'　街'+SV.city+'　防衛機関'+SV.B.length+'基';
+ switch(SV.step){
+ case 'ev':return{st,title:hd,text:D.slotEvents[SV.slot],btns:[{l:'次へ',f:go('sel')}]};
+ case 'sel':return{st,title:hd+'：行動を選ぶ',text:'どこへ向かう？',
+  btns:[...D.commands.map(c=>({l:c.nm,f:()=>{SV.msg=applyCmd(c);SV.step='act';}})),{l:'防衛準備',f:go('prep')}]};
+ case 'prep':return{st,title:'防衛準備',text:'（準備中：ここに防衛機関の設立画面を作る。行動は消費しない）',btns:[{l:'戻る',f:go('sel')}]};
+ case 'act':return{st,title:hd,text:SV.msg,btns:[{l:'次へ',f:()=>{
+  if(SV.slot<D.slots.length-1){SV.slot++;SV.step='ev';}else SV.step='night';}}]};
+ case 'night':return{st,title:SV.day+'日目 夜',text:'敵が近づいてくる…',btns:[{l:'防衛バトル開始',f:startBattle}]};
+ case 'clear':return{st,title:SV.day+'日目 終了',text:'夜を守り抜いた。街HP'+SV.city+'、防衛機関'+SV.B.length+'基。',
+  btns:[{l:SV.day>=D.days?'おしまいへ':'翌朝へ',f:()=>{if(SV.day>=D.days)SV.step='end';else{SV.day++;SV.slot=0;SV.step='ev';}}}]};
+ case 'lose':return{st,title:'ゲームオーバー',text:'街を守れなかった…',btns:[{l:'最初から',f:newGame}]};
+ default:return{st,title:'試作ここまで',text:D.days+'日間を守り切った！',btns:[{l:'最初から',f:newGame}]};
+ }
 }

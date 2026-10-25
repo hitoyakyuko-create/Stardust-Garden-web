@@ -8,12 +8,19 @@ body{margin:0;background:#0a0a1f;color:#e6e6ff;font-family:"Hiragino Sans","Noto
 canvas{width:100%;max-width:528px;touch-action:none;background:#14143a}
 button{font:inherit;font-size:15px;padding:8px 12px;margin:4px;border:0;border-radius:6px;background:#5b5bd6;color:#fff}
 button:focus-visible{outline:3px solid #ffe14a}
+#day{max-width:528px;margin:0 auto;padding:12px}
+#dayTitle{font-size:16px;font-weight:bold;margin:8px 0}
+#dayText{font-size:14px;line-height:1.6;min-height:96px;text-align:left}
 #log{font-size:13px;text-align:left;max-width:528px;margin:4px auto;padding:0 10px;min-height:90px;line-height:1.5}
 </style></head><body>
 <div id="st"></div>
+<div id="day" hidden><div id="dayTitle"></div><div id="dayText"></div><div id="dayBtns"></div></div>
+<div id="battle" hidden>
 <canvas id="c" width="528" height="396"></canvas>
 <div><button id="go">ターン実行</button><button id="sk">スキル</button><button id="skip">攻撃なし</button><button id="un">選び直し</button><button id="cl">全部リセット</button><button id="cm">カメラ</button><button id="rs">最初から</button></div>
+<div><button id="dawn" hidden>夜明けへ</button></div>
 <div id="log"></div>
+</div>
 <script src="data.js"></script>
 <script src="game.js"></script>
 <script src="render.js"></script>
