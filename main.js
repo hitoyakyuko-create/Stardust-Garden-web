@@ -31,7 +31,8 @@ function showDay(){
  const v=dayView();
  btn('st').textContent=v.st;btn('dayTitle').textContent=v.title;btn('dayText').textContent=v.text;
  const box=btn('dayBtns');box.innerHTML='';
- for(const b of v.btns){const e=document.createElement('button');e.textContent=b.l;e.onclick=()=>{b.f();showDay();};box.appendChild(e);}
+ // バトルへ移ったときは日常画面に戻さない
+ for(const b of v.btns){const e=document.createElement('button');e.textContent=b.l;e.onclick=()=>{b.f();if(btn('battle').hidden)showDay();};box.appendChild(e);}
 }
 function newGame(){SV=newSave();showDay();}
 function startBattle(){show(true);btn('dawn').hidden=true;init(SV);}   // 夜のバトル（前日からの持ち越し付き）
