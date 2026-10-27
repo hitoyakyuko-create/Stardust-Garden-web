@@ -151,7 +151,7 @@ async function run(){
 
 // ===== 1日の流れ（セーブデータ SV に全部まとめる。座標は rel 基準）=====
 let SV;
-function newSave(){return{day:1,slot:0,step:'ev',city:R.cityHp,B:DATA.buildings.map(b=>({k:b.k,hp:b.hp,mh:b.hp,x:b.x,y:b.y})),msg:''};}
+function newSave(){return{day:1,slot:0,step:'ev',city:R.cityHp,pt:DATA.day.startPt,pend:null,B:DATA.buildings.map(b=>({k:b.k,hp:b.hp,mh:b.hp,x:b.x,y:b.y})),msg:''};}
 // 行動の効果を適用して、結果の文章を返す
 function applyCmd(c){
  let t=c.text;
@@ -163,18 +163,28 @@ function saveBattle(){SV.city=Math.max(city,0);SV.B=B.map(b=>({k:b.k,hp:b.hp,mh:
 // いまの場面の表示内容を返す（描き方は main.js）
 function dayView(){
  const D=DATA.day,sl=D.slots[SV.slot],hd=SV.day+'日目 '+sl,go=(step,f)=>()=>{SV.step=step;if(f)f();};
- const st=hd+'　街'+SV.city+'　防衛機関'+SV.B.length+'基';
+ const st=hd+'　街'+SV.city+'　防衛機関'+SV.B.length+'基　ポイント'+SV.pt;
  switch(SV.step){
  case 'ev':return{st,title:hd,text:D.slotEvents[SV.slot],btns:[{l:'次へ',f:go('sel')}]};
  case 'sel':return{st,title:hd+'：行動を選ぶ',text:'どこへ向かう？',
   btns:[...D.commands.map(c=>({l:c.nm,f:()=>{SV.msg=applyCmd(c);SV.step='act';}})),{l:'防衛準備',f:go('prep')}]};
- case 'prep':return{st,title:'防衛準備',text:'（準備中：ここに防衛機関の設立画面を作る。行動は消費しない）',btns:[{l:'戻る',f:go('sel')}]};
+ case 'prep':{const T=DATA.buildingTypes;
+  return{st,title:'防衛準備：種類を選ぶ',text:SV.msg||'建てる防衛機関を選んでください（行動は消費しない）',
+  btns:[...Object.keys(T).map(k=>({l:k+'（'+T[k].cost+'pt）',off:SV.pt<T[k].cost||!freeSlots().length,f:()=>{SV.pend=k;SV.msg='';SV.step='prep2';}})),
+  {l:'戻る',f:()=>{SV.msg='';SV.step='sel';}}]};}
+ case 'prep2':return{st,title:'防衛準備：'+SV.pend+'を建てる場所',text:'設立できる場所を選んでください',
+  btns:[...freeSlots().map(([x,y])=>({l:'区画('+x+','+y+')',f:()=>buildAt(SV.pend,x,y)})),{l:'戻る',f:go('prep')}]};
  case 'act':return{st,title:hd,text:SV.msg,btns:[{l:'次へ',f:()=>{
   if(SV.slot<D.slots.length-1){SV.slot++;SV.step='ev';}else SV.step='night';}}]};
  case 'night':return{st,title:SV.day+'日目 夜',text:'敵が近づいてくる…',btns:[{l:'防衛バトル開始',f:startBattle}]};
  case 'clear':return{st,title:SV.day+'日目 終了',text:'夜を守り抜いた。街HP'+SV.city+'、防衛機関'+SV.B.length+'基。',
-  btns:[{l:SV.day>=D.days?'おしまいへ':'翌朝へ',f:()=>{if(SV.day>=D.days)SV.step='end';else{SV.day++;SV.slot=0;SV.step='ev';}}}]};
+  btns:[{l:SV.day>=D.days?'おしまいへ':'翌朝へ',f:()=>{if(SV.day>=D.days)SV.step='end';else{SV.day++;SV.slot=0;SV.step='ev';SV.pt+=DATA.day.dayPt;}}}]};
  case 'lose':return{st,title:'ゲームオーバー',text:'街を守れなかった…',btns:[{l:'最初から',f:newGame}]};
  default:return{st,title:'試作ここまで',text:D.days+'日間を守り切った！',btns:[{l:'最初から',f:newGame}]};
  }
 }
+
+// 設立できる場所のうち、まだ空いている所
+function freeSlots(){return DATA.buildSlots.filter(([x,y])=>!SV.B.some(b=>b.x==x&&b.y==y));}
+// 防衛機関を設立する（ポイントを使って、セーブデータの防衛機関リストに追加）
+function buildAt(k,x,y){const t=DATA.buildingTypes[k];SV.pt-=t.cost;SV.B.push({k,hp:t.hp,mh:t.hp,x,y});SV.msg=k+'を('+x+','+y+')に設立した。';SV.pend=null;SV.step='prep';}

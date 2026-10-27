@@ -34,13 +34,17 @@ buildings:[
 ],
 // 防衛機関の種類ごとの色と自動行動（act）
 buildingTypes:{
- '砲台':{color:'#e08a20',act:{type:'shoot',range:3,dmg:2}},
- '防壁':{color:'#9a7b4f'},
- '修理所':{color:'#30c080',act:{type:'repair',range:2,heal:1,fragAdd:1}}
+ // cost＝設立に使う仮ポイント、hp＝設立時のHP（種類は今後増える予定）
+ '砲台':{color:'#e08a20',cost:5,hp:5,act:{type:'shoot',range:3,dmg:2}},
+ '防壁':{color:'#9a7b4f',cost:3,hp:8},
+ '修理所':{color:'#30c080',cost:4,hp:4,act:{type:'repair',range:2,heal:1,fragAdd:1}}
 },
+// 防衛機関を設立できる場所（rel座標）。ここに空きがあるときだけ建てられる
+buildSlots:[[2,9],[5,9],[9,9],[2,10],[3,10],[5,10],[6,10],[8,10]],
 // 1日の流れ：朝・昼・夕に行動を1回ずつ選び、夜に防衛バトル
 day:{
- days:3,                              // 試作は3日で終了
+ days:3,
+ startPt:10,dayPt:5,                    // 仮ポイント：最初の所持数／2日目以降、毎朝もらえる数（仮）                              // 試作は3日で終了
  slots:['朝','昼','夕'],              // 時間帯
  slotEvents:['朝の光が町に差し込む。','昼の星屑が静かに降っている。','夕暮れ。今夜も敵が来そうだ。'],
  // A〜Hの仮コマンド（fx＝選んだときの効果。無ければ文章を出すだけ）
