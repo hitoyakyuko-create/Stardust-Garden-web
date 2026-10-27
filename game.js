@@ -188,3 +188,24 @@ function dayView(){
 function freeSlots(){return DATA.buildSlots.filter(([x,y])=>!SV.B.some(b=>b.x==x&&b.y==y));}
 // 防衛機関を設立する（ポイントを使って、セーブデータの防衛機関リストに追加）
 function buildAt(k,x,y){const t=DATA.buildingTypes[k];SV.pt-=t.cost;SV.B.push({k,hp:t.hp,mh:t.hp,x,y});SV.msg=k+'を('+x+','+y+')に設立した。';SV.pend=null;SV.step='prep';}
+
+// ===== セーブ・ロード =====
+// 保存先は Store にまとめてある。あとで別の保存先（ファイル書き出し等）にするときは、ここだけ差し替えればOK
+const Store={
+ key:'stardust-garden-save',
+ save(o){try{localStorage.setItem(this.key,JSON.stringify(o));}catch(e){}},   // 保存できない環境でもゲームは止めない
+ load(){try{return JSON.parse(localStorage.getItem(this.key));}catch(e){return null;}},
+ clear(){try{localStorage.removeItem(this.key);}catch(e){}}
+};
+const SAVE_VER=1;   // セーブデータの形を変えたら上げる（古いデータを見分ける番号）
+function saveGame(){Store.save({ver:SAVE_VER,sv:SV});}
+// 読み込む。壊れている・古い・無いときは null を返す
+function loadGame(){
+ const o=Store.load();
+ if(!o||o.ver!==SAVE_VER||!o.sv)return null;
+ const s={...newSave(),...o.sv};   // あとで項目を増やしても、足りない分は初期値で補う
+ if(!Array.isArray(s.B)||!['ev','sel','prep','prep2','act','night','clear','lose','end'].includes(s.step))return null;
+ s.B=s.B.filter(b=>DATA.buildingTypes[b.k]);   // 種類が消えた防衛機関は除く
+ if(s.step=='prep2'){s.step='prep';s.pend=null;}   // 場所選びの途中は、種類選びに戻す
+ return s;
+}

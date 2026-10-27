@@ -23,10 +23,11 @@ btn('un').onclick=()=>{if(busy||over)return;if(sel){plan.delete(sel);mode='m';}d
 btn('cl').onclick=()=>{if(busy||over)return;plan=new Map();sel=null;mode='m';draw();};
 btn('go').onclick=run;
 btn('skip').onclick=()=>{sel=null;draw();};
-btn('rs').onclick=()=>newGame();
+btn('rs').onclick=()=>{if(confirm('最初からやり直しますか？セーブデータも消えます'))newGame();};
 // ===== 日常画面と、日常⇔バトルの切り替え =====
 function show(battle){btn('day').hidden=battle;btn('battle').hidden=!battle;}
 function showDay(){
+ saveGame();   // 場面が変わるたびに自動保存
  show(false);
  const v=dayView();
  btn('st').textContent=v.st;btn('dayTitle').textContent=v.title;btn('dayText').textContent=v.text;
@@ -40,4 +41,4 @@ function endBattle(){btn('dawn').hidden=false;}                       // バト�
 btn('dawn').onclick=()=>{if(won){saveBattle();SV.step='clear';}else SV.step='lose';showDay();};
 loadSprites();
 loadImages();
-newGame();
+SV=loadGame()||newSave();showDay();   // セーブがあれば続きから
