@@ -33,6 +33,13 @@ function showDay(){
  btn('st').textContent=v.st;btn('dayTitle').textContent=v.title;btn('dayText').textContent=v.text;
  const box=btn('dayBtns');box.innerHTML='';
  // バトルへ移ったときは日常画面に戻さない
+  for(const r of (v.rows||[])){   // 数を増減する行（星屑の振り分け用）
+  const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;margin:6px 0';
+  const lb=document.createElement('span');lb.textContent=r.label;lb.style.flex='1';
+  const mk=(t,f,off)=>{const e=document.createElement('button');e.textContent=t;e.disabled=!!off;e.onclick=()=>{f();showDay();};return e;};
+  const vl=document.createElement('span');vl.textContent=r.val;vl.style.cssText='min-width:2em;text-align:center';
+  row.append(lb,mk('−',r.minus,r.minusOff),vl,mk('＋',r.plus,r.plusOff));box.appendChild(row);
+ }
  for(const b of v.btns){const e=document.createElement('button');e.textContent=b.l;e.disabled=!!b.off;e.onclick=()=>{b.f();if(btn('battle').hidden)showDay();};box.appendChild(e);}
 }
 function newGame(){SV=newSave();showDay();}

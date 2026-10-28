@@ -151,7 +151,8 @@ async function run(){
 
 // ===== 1日の流れ（セーブデータ SV に全部まとめる。座標は rel 基準）=====
 let SV;
-function newSave(){return{day:1,slot:0,step:'ev',city:R.cityHp,pt:DATA.day.startPt,pend:null,B:DATA.buildings.map(b=>({k:b.k,hp:b.hp,mh:b.hp,x:b.x,y:b.y})),msg:''};}
+function zeroMem(){return Object.fromEntries(DATA.units.map(u=>[u.nm,0]));}   // ユニットごとの記憶の数（0で初期化）
+function newSave(){return{day:1,slot:0,step:'ev',city:R.cityHp,pt:DATA.day.startPt,pend:null,star:0,mp:0,mem:zeroMem(),draft:{res:0,mp:0,mem:zeroMem()},B:DATA.buildings.map(b=>({k:b.k,hp:b.hp,mh:b.hp,x:b.x,y:b.y})),msg:''};}
 // 行動の効果を適用して、結果の文章を返す
 function applyCmd(c){
  let t=c.text;
@@ -159,11 +160,11 @@ function applyCmd(c){
  return t;
 }
 // バトル結果をセーブデータへ書き戻す（街HPと生き残った防衛機関を持ち越す）
-function saveBattle(){SV.city=Math.max(city,0);SV.B=B.map(b=>({k:b.k,hp:b.hp,mh:b.mh,x:b.x-OX,y:b.y-OY}));}
+function saveBattle(){SV.star+=DATA.day.starPerNight;SV.city=Math.max(city,0);SV.B=B.map(b=>({k:b.k,hp:b.hp,mh:b.mh,x:b.x-OX,y:b.y-OY}));}
 // いまの場面の表示内容を返す（描き方は main.js）
 function dayView(){
  const D=DATA.day,sl=D.slots[SV.slot],hd=SV.day+'日目 '+sl,go=(step,f)=>()=>{SV.step=step;if(f)f();};
- const st=hd+'　街'+SV.city+'　防衛機関'+SV.B.length+'基　ポイント'+SV.pt;
+ const st=hd+'　街'+SV.city+'　防衛機関'+SV.B.length+'基　ポイント'+SV.pt+'　魔力'+SV.mp+'　星屑'+SV.star;
  switch(SV.step){
  case 'ev':return{st,title:hd,text:D.slotEvents[SV.slot],btns:[{l:'次へ',f:go('sel')}]};
  case 'sel':return{st,title:hd+'：行動を選ぶ',text:'どこへ向かう？',
@@ -177,8 +178,12 @@ function dayView(){
  case 'act':return{st,title:hd,text:SV.msg,btns:[{l:'次へ',f:()=>{
   if(SV.slot<D.slots.length-1){SV.slot++;SV.step='ev';}else SV.step='night';}}]};
  case 'night':return{st,title:SV.day+'日目 夜',text:'敵が近づいてくる…',btns:[{l:'防衛バトル開始',f:startBattle}]};
- case 'clear':return{st,title:SV.day+'日目 終了',text:'夜を守り抜いた。街HP'+SV.city+'、防衛機関'+SV.B.length+'基。',
-  btns:[{l:SV.day>=D.days?'おしまいへ':'翌朝へ',f:()=>{if(SV.day>=D.days)SV.step='end';else{SV.day++;SV.slot=0;SV.step='ev';SV.pt+=DATA.day.dayPt;}}}]};
+ case 'clear':return{st,title:SV.day+'日目 終了',text:'夜を守り抜いた。星屑を'+DATA.day.starPerNight+'手に入れた。街HP'+SV.city+'、防衛機関'+SV.B.length+'基。',
+  btns:[{l:'星屑を振り分ける',f:go('dist',()=>{SV.draft={res:0,mp:0,mem:zeroMem()};})}]};
+ case 'dist':{const b=distBuckets(),rem=distRemain();
+  return{st,title:'星屑の振り分け',text:'星屑'+SV.star+'（未振り分け'+rem+'）。資源→防衛機関のポイント、魔力→ユニット強化、記憶→ユニットのストーリー。残りは持ち越せます。',
+  rows:b.map(x=>({label:x.l+'　計'+x.total(),val:x.get(),minus:()=>{if(x.get()>0)x.add(-1);},plus:()=>{if(distRemain()>0)x.add(1);},minusOff:x.get()<=0,plusOff:rem<=0})),
+  btns:[{l:'確定',f:distConfirm}]};}
  case 'lose':return{st,title:'ゲームオーバー',text:'街を守れなかった…',btns:[{l:'最初から',f:newGame}]};
  default:return{st,title:'試作ここまで',text:D.days+'日間を守り切った！',btns:[{l:'最初から',f:newGame}]};
  }
@@ -204,8 +209,28 @@ function loadGame(){
  const o=Store.load();
  if(!o||o.ver!==SAVE_VER||!o.sv)return null;
  const s={...newSave(),...o.sv};   // あとで項目を増やしても、足りない分は初期値で補う
- if(!Array.isArray(s.B)||!['ev','sel','prep','prep2','act','night','clear','lose','end'].includes(s.step))return null;
+ if(!Array.isArray(s.B)||!['ev','sel','prep','prep2','act','night','clear','dist','lose','end'].includes(s.step))return null;
+ s.mem={...zeroMem(),...s.mem};s.draft={res:0,mp:0,...s.draft,mem:{...zeroMem(),...(s.draft&&s.draft.mem)}};
  s.B=s.B.filter(b=>DATA.buildingTypes[b.k]);   // 種類が消えた防衛機関は除く
  if(s.step=='prep2'){s.step='prep';s.pend=null;}   // 場所選びの途中は、種類選びに戻す
  return s;
+}
+
+// ===== 星屑の振り分け =====
+// 振り分け先の一覧：資源・魔力と、ユニットごとの記憶（誰に渡すかを選べる）
+function distBuckets(){
+ const D=SV.draft;
+ return[
+  {l:'資源（防衛機関）',get:()=>D.res,add:n=>{D.res+=n;},total:()=>SV.pt+'pt'},
+  {l:'魔力（ユニット強化）',get:()=>D.mp,add:n=>{D.mp+=n;},total:()=>SV.mp},
+  ...DATA.units.map(u=>({l:'記憶：'+u.nm,get:()=>D.mem[u.nm]||0,add:n=>{D.mem[u.nm]=(D.mem[u.nm]||0)+n;},total:()=>SV.mem[u.nm]||0}))
+ ];
+}
+function distRemain(){const D=SV.draft;return SV.star-D.res-D.mp-Object.values(D.mem).reduce((a,b)=>a+b,0);}
+// 確定：振り分けを実際の持ち物に反映して、翌朝（または終了）へ
+function distConfirm(){
+ const D=SV.draft,rem=distRemain();
+ SV.pt+=D.res;SV.mp+=D.mp;for(const k in D.mem)SV.mem[k]=(SV.mem[k]||0)+D.mem[k];
+ SV.star=rem;SV.draft={res:0,mp:0,mem:zeroMem()};
+ if(SV.day>=DATA.day.days)SV.step='end';else{SV.day++;SV.slot=0;SV.step='ev';SV.pt+=DATA.day.dayPt;}
 }
