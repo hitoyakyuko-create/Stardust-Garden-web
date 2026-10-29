@@ -58,7 +58,7 @@ function draw(){
  g.fillStyle=C.cityBar;g.fillRect(0,(H-1)*S,W*S,S);
  g.fillStyle=C.textLight;ft('街 HP '+Math.max(city,0)+' / '+R.cityHp,(camX+VW/2)*S,(H-1)*S+22);
  if(sel){
-  const L=mode=='m'?reach(sel).map(c=>[c.x,c.y,C.move]):(mode=='s'?skt:tg)(sel,plan.get(sel).dx,plan.get(sel).dy).map(c=>[c.x,c.y,mode=='s'?C.skill:C.attack]);
+  const L=mode=='m'?reach(sel).map(c=>[c.x,c.y,C.move]):(mode=='s'?skt:mode=='t'?tst:tg)(sel,plan.get(sel).dx,plan.get(sel).dy).map(c=>[c.x,c.y,mode=='a'?C.attack:C.skill]);
   for(const[x,y,col]of L){g.fillStyle=col;g.fillRect(x*S+1,y*S+1,S-2,S-2);}
  }
  plan.forEach(p=>{

@@ -8,7 +8,7 @@ function tap(ev){
  if(a&&a!==sel&&(a.type=='U'||ctl(a))){sel=a;mode='m';draw();return;}
  if(!sel){draw();return;}
  if(mode=='m'){const c=reach(sel).find(c=>c.x==X&&c.y==Y);if(c){plan.set(sel,{path:c.p,dx:c.x,dy:c.y,t:null});mode='a';}}
- else{const p=plan.get(sel),L=mode=='s'?skt(sel,p.dx,p.dy):tg(sel,p.dx,p.dy);if(L.some(c=>c.x==X&&c.y==Y)){p.t={x:X,y:Y};p.sk=mode=='s';sel=null;}}
+ else{const p=plan.get(sel),L=mode=='s'?skt(sel,p.dx,p.dy):mode=='t'?tst(sel):tg(sel,p.dx,p.dy);if(L.some(c=>c.x==X&&c.y==Y)){p.t={x:X,y:Y};p.sk=mode=='s';p.tk=mode=='t';sel=null;}}
  draw();
 }
 cv.onpointerdown=e=>{pd={x:e.clientX,y:e.clientY,cx:camX,cy:camY,mv:0};cv.setPointerCapture(e.pointerId);};
@@ -19,6 +19,8 @@ cv.onpointerup=e=>{if(!pd)return;const m=pd.mv;pd=null;if(m){camX=Math.round(cam
 cv.onpointercancel=()=>{pd=null;};
 btn('cm').onclick=()=>{const t=sel||U[0];if(t){camX=cc(Math.round(t.x-VW/2+.5),W-VW);camY=cc(Math.round(t.y-VH/2+.5),H-VH);}draw();};
 btn('sk').onclick=()=>{if(sel&&sel.type=='U'&&mode=='a'&&sel.sp>=cost(sel))mode='s';draw();};
+btn('tk').hidden=!DATA.debugShot;if(DATA.debugShot)btn('tk').textContent=DATA.debugShot.name;
+btn('tk').onclick=()=>{if(DATA.debugShot&&sel&&sel.type=='U'&&sel.nm==DATA.debugShot.unit&&mode=='a')mode='t';draw();};
 btn('un').onclick=()=>{if(busy||over)return;if(sel){plan.delete(sel);mode='m';}draw();};
 btn('cl').onclick=()=>{if(busy||over)return;plan=new Map();sel=null;mode='m';draw();};
 btn('go').onclick=run;

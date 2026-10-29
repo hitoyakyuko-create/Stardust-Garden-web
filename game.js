@@ -118,13 +118,19 @@ function skill(a,t){
  for(let i=1;i<=d;i++){const cx=a.x+dx*i,cy=a.y+dy*i;if(cx<0||cy<0||cx>=W||cy>CY||blk(cx,cy)||[...U,...F,...B].some(o=>o.x==cx&&o.y==cy))break;const e=eAt(cx,cy);if(e)dmg(e,sk.dmg,sk.who);if(!eAt(cx,cy)){lx=cx;ly=cy;}}
  a.x=lx;a.y=ly;
 }
+// テスト砲：マップ全体が射程（動作確認用）
+function tst(a){const r=[];for(let y=0;y<=CY;y++)for(let x=0;x<W;x++)r.push({x,y});return r;}
+function testShot(a,t){
+ const ds=DATA.debugShot;faceTo(a,t);lg(a.nm+'の'+ds.name+'！');
+ const e=eAt(t.x,t.y);if(e)dmg(e,ds.dmg,ds.name);else lg('空振り');
+}
 async function run(){
  if(busy||over)return;busy=1;sel=null;
  const au=new Set(F.filter(f=>!ctl(f)));
  for(const a of[...U,...F]){
   if(over)break;if(!alive(a))continue;
   if(au.has(a))auto(a);
-  else{const p=plan.get(a);if(p){mv(a,p.path);if(p.sk&&a.sp>=cost(a))skill(a,p.t);else atk(a,p.t);}}
+  else{const p=plan.get(a);if(p){mv(a,p.path);if(p.tk)testShot(a,p.t);else if(p.sk&&a.sp>=cost(a))skill(a,p.t);else atk(a,p.t);}}
   draw();await sl(300);
  }
  for(const b of[...B]){if(over)break;if(!B.includes(b))continue;let did=0;
