@@ -11,11 +11,56 @@ const blk=(x,y)=>T[y][x]>0;
 const sl=ms=>new Promise(r=>setTimeout(r,ms));
 const lg=s=>log.push(s);
 const cost=a=>a.skill.cost;
+// ===== ダメージ計算（除算型）：ATK×威力/100 × 100/(100+DEF) × 属性倍率 =====
+const calcDmg=(atkV,power,defV,m=1)=>Math.max(1,Math.round(atkV*power/100*100/(100+defV)*m));
+const elemMul=(e,el)=>!el||el=='無'?1:(e.weak&&e.weak.includes(el)?R.elem.weak:(e.resist&&e.resist.includes(el)?R.elem.resist:1));
+const sumBuf=(o,k)=>(o.buf||[]).reduce((s,b)=>s+(b[k]||0),0);   // 敵にかかっている強化・弱体の合計
+const defOf=e=>e.def*(1+sumBuf(e,'def'));
+const agiOf=o=>(o.agi||40)*(1+sumBuf(o,'agi'))+Math.random()*10-5;   // 行動順（±5のゆらぎ）
+const mainKind=a=>Object.keys(a.atkMul||{}).sort((p,q)=>a.atkMul[q]-a.atkMul[p])[0]||'物理';
+const uAtk=(a,kind)=>a.atk*((a.atkMul&&a.atkMul[kind])||1);
+const dayNow=()=>(typeof SV!=='undefined'&&SV&&SV.day)||1;
+// 敵1体を作る（日数が進むほど体力・攻撃・防御が上がる）
+function mkEnemy(nm,boss){
+ const t=DATA.enemy.types[nm],g=1+DATA.enemy.grow*(dayNow()-1);
+ let weak=t.weak,resist=t.resist,label=nm;
+ if(t.variant){const v=DATA.enemy.variants[Math.random()*DATA.enemy.variants.length|0];weak=[v.weak];resist=[v.resist];label=nm+'('+v.c+')';}
+ const life=Math.round(t.life*g);
+ return{x:topX(),y:0,type:'E',nm:label,hp:life,mh:life,atk:Math.round(t.atk*g),def:Math.round(t.def*g),agi:t.agi,kind:t.kind,move:t.move,weak,resist,boss:boss?1:0,buf:[]};
+}
+function pickType(){
+ const m=[...DATA.enemy.mix,...(dayNow()>1?DATA.enemy.mixLate:[])];
+ let r=Math.random()*m.reduce((s,x)=>s+x[1],0);
+ for(const[n,w]of m){if((r-=w)<0)return n;}
+ return m[0][0];
+}
+// 敵から味方・防衛機関へのダメージ（フラグメントは「失う体数」で返す）
+function eDmg(e,o){
+ if(o.type=='U')return calcDmg(e.atk,100,o.def*((o.defMul&&o.defMul[e.kind])||1));
+ if(o.type=='F')return Math.max(1,Math.ceil(calcDmg(e.atk,100,o.fdf)/o.ind));
+ return calcDmg(e.atk,100,R.cityDef);
+}
+// 敵1体に技・攻撃を当てる（sk＝power・elem・kind・ignore・fx）
+function hitEnemy(a,e,sk){
+ let el=sk.elem;if(el=='auto')el=(e.weak&&e.weak[0])||'無';
+ const m=elemMul(e,el),kind=sk.kind||mainKind(a),v=calcDmg(uAtk(a,kind),sk.power,defOf(e)*(1-(sk.ignore||0)),m);
+ dmg(e,v,sk.name||a.nm,m>1?'（弱点！）':m<1?'（抵抗）':'');
+ const f=sk.fx;
+ if(f&&E.includes(e)){
+  e.buf=e.buf||[];
+  if(f.def)e.buf.push({def:f.def,t:f.t});
+  if(f.agi)e.buf.push({agi:f.agi,t:f.t});
+  if(f.dot)e.dot={v:calcDmg(uAtk(a,kind),f.dot,defOf(e),1),t:f.t};
+ }
+}
+// 建設コスト：配列なら「何基目か」で値段が変わる
+function bcost(k){const c=DATA.buildingTypes[k].cost,n=SV.B.filter(b=>b.k==k).length;return Array.isArray(c)?c[Math.min(n,c.length-1)]:c;}
 // 向き：画面上で右へ進む／右の相手なら'r'、左なら'l'
 const faceTo=(a,t)=>{const s=(t.x-a.x)-(t.y-a.y);if(s)a.face=s>0?'r':'l';};
 const topX=()=>{const fr=[...Array(W).keys()].filter(x=>!occ(x,0));return fr[Math.random()*fr.length|0];};
 function init(c){
- U=DATA.units.map(d=>({...d,mh:d.hp,sp:R.spInit,x:d.x+OX,y:d.y+OY,face:'r',type:'U'}));
+ const pty=DATA.party[dayNow()>1?1:0];   // 初日は3人、2日目以降は4人
+ U=DATA.units.filter(d=>pty.includes(d.nm)).map(d=>({...d,mh:d.hp,sp:d.spMax,skill:d.skills[d.skillIdx||0],x:d.x+OX,y:d.y+OY,face:'r',type:'U'}));
  F=DATA.fragments.map(d=>({...d,x:d.x+OX,y:d.y+OY,type:'F'}));
  T=Array.from({length:H},()=>Array(W).fill(0));TI=Array.from({length:H},()=>Array(W).fill(null));
  for(const t of DATA.terrain){
@@ -26,7 +71,7 @@ function init(c){
  OB=buildObjects();
  camX=(W-VW)/2;camY=H-VH;E=[];turn=1;city=c?c.city:R.cityHp;over=0;won=0;busy=0;sel=null;mode='m';plan=new Map();
  log=['ターン1：味方をタップして行動を決め、「ターン実行」'];
- hpq=[...DATA.enemy.hpQueue];spawn(DATA.waves.initial);draw();
+ spawn(DATA.waves.initial);draw();
 }
 // 隣り合う障害物を、まとめて1つの岩として扱う（2×2→4マス、横2→2x、縦2→2y、他は1マス）
 function buildObjects(){
@@ -41,7 +86,7 @@ function buildObjects(){
 }
 function reach(a){
  const k=(x,y)=>x+','+y,s={x:a.x,y:a.y,p:[],s:0},d={[k(a.x,a.y)]:s},q=[s];
- while(q.length){const c=q.shift();if(c.s>=R.moveRange)continue;
+ while(q.length){const c=q.shift();if(c.s>=(a.move||R.moveRange))continue;
   for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=c.x+dx,ny=c.y+dy;
    if(nx<0||ny<0||nx>=W||ny>CY||d[k(nx,ny)]||blk(nx,ny)||occ(nx,ny))continue;
    d[k(nx,ny)]={x:nx,y:ny,p:[...c.p,[nx,ny]],s:c.s+1};q.push(d[k(nx,ny)]);}}
@@ -55,16 +100,16 @@ function tg(a,px,py){
   if(ok)r.push({x,y});}
  return r;
 }
-function spawn(k){for(let i=0;i<k;i++)E.push({x:topX(),y:0,hp:hpq.shift(),type:'E'});}
+function spawn(k){for(let i=0;i<k;i++)E.push(mkEnemy(pickType()));}
 function chk(){if(!over&&(city<=0||!U.length)){over=1;lg('■ゲームオーバー');}}
 function hurt(o,v){
  if(o.type=='B'){o.hp-=v;if(o.hp<=0){B.splice(B.indexOf(o),1);lg(o.nm+'が壊れた');}return;}
  if(o.type=='U'){o.hp-=v;if(o.hp<=0){U.splice(U.indexOf(o),1);lg(o.nm+'が倒れた');}}
  else{o.n-=v;if(o.n<=0){F.splice(F.indexOf(o),1);lg(o.nm+'が全滅');}}
 }
-function dmg(e,v,who){
- e.hp-=v;lg(who+'→敵に'+v+'ダメージ');
- if(e.hp<=0){E.splice(E.indexOf(e),1);if(e.boss){over=1;won=1;lg('★クリア！ボスを倒した！');}}
+function dmg(e,v,who,tag=''){
+ e.hp-=v;lg(who+'→'+e.nm+'に'+v+'ダメージ'+tag);
+ if(e.hp<=0){const i=E.indexOf(e);if(i>=0)E.splice(i,1);if(e.boss){over=1;won=1;lg('★クリア！ボスを倒した！');}}
 }
 function mv(a,path){for(const[px,py]of path){if(occ(px,py)||blk(px,py))break;a.face=((px-a.x)-(py-a.y))>0?'r':'l';a.x=px;a.y=py;}}
 function atk(a,t){
@@ -74,11 +119,11 @@ function atk(a,t){
  if(a.type=='F'){
   if(d<1||d>2||(t.x!=a.x&&t.y!=a.y))return lg(a.nm+'の攻撃は空振り');
   const dx=Math.sign(t.x-a.x),dy=Math.sign(t.y-a.y);
-  for(let i=1;i<=d;i++){const cx=a.x+dx*i,cy=a.y+dy*i;if(T[cy][cx]==1)break;const e=eAt(cx,cy);if(e)return dmg(e,a.n,a.nm);}
+  for(let i=1;i<=d;i++){const cx=a.x+dx*i,cy=a.y+dy*i;if(T[cy][cx]==1)break;const e=eAt(cx,cy);if(e)return dmg(e,calcDmg(a.n*a.fat,100,defOf(e)),a.nm);}
   return lg(a.nm+'の攻撃は空振り');
  }
  const e=eAt(t.x,t.y);
- if(e&&d>=1&&d<=a.range)dmg(e,a.atk,a.nm);else lg(a.nm+'の攻撃は空振り');
+ if(e&&d>=1&&d<=a.range)hitEnemy(a,e,{power:100,elem:'無',name:a.nm});else lg(a.nm+'の攻撃は空振り');
 }
 function auto(f){
  if(!E.length)return;
@@ -94,8 +139,8 @@ function eAct(e){
   const D=dfield(),c=reach(e).reduce((b,c)=>(D[c.y][c.x]<D[b.y][b.x]||(D[c.y][c.x]==D[b.y][b.x]&&Math.abs(c.x-e.x)<Math.abs(b.x-e.x)))?c:b);
   mv(e,c.p);m=c.s;
  }
- if(e.y==CY){city-=DATA.enemy.atk;lg('敵が街を攻撃！ 街HP'+Math.max(city,0));}
- else if(m<R.moveRange){const o=[...U,...F,...B].find(o=>man(o,e)==1);if(o){hurt(o,DATA.enemy.atk);lg('敵が'+o.nm+'を攻撃');}}
+ if(e.y==CY){const v=calcDmg(e.atk,100,R.cityDef);city-=v;lg(e.nm+'が街を攻撃！ '+v+'ダメージ 街HP'+Math.max(city,0));}
+ else if(m<(e.move||R.moveRange)){const o=[...U,...F,...B].find(o=>man(o,e)==1);if(o){hurt(o,eDmg(e,o));lg(e.nm+'が'+o.nm+'を攻撃');}}
  chk();
 }
 // 街に近いほど小さい数字になる距離表（敵の進路決めに使う）
@@ -103,20 +148,21 @@ function dfield(){const d=Array.from({length:H},()=>Array(W).fill(99)),q=[];for(
  while(q.length){const[x,y]=q.shift();for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=W||ny>CY||blk(nx,ny)||d[ny][nx]<99)continue;d[ny][nx]=d[y][x]+1;q.push([nx,ny]);}}return d;}
 // スキルを選べるマス（shape:'line'は縦横の直線のみ）
 function skt(a,px,py){const sk=a.skill,r=[];for(let y=0;y<=CY;y++)for(let x=0;x<W;x++){const d=Math.abs(x-px)+Math.abs(y-py);if(d>=1&&d<=sk.range&&(sk.shape!='line'||x==px||y==py))r.push({x,y});}return r;}
-// スキルの種類ごとの処理（burst＝着弾点と上下左右、charge＝直線に突進）
+// 技の処理：shape（single／cross／area／line／chain）ごとに当たる敵を集めて、1体ずつダメージ計算する
 function skill(a,t){
- const sk=a.skill;a.sp-=sk.cost;faceTo(a,t);const d=man(a,t);
- if(sk.type=='burst'){
-  if(d<1||d>sk.range)return lg('スキルは空振り');
-  lg(a.nm+'の'+sk.name+'！');
-  for(const[dx,dy]of[[0,0],[1,0],[-1,0],[0,1],[0,-1]]){const e=eAt(t.x+dx,t.y+dy);if(e)dmg(e,sk.dmg,sk.who);}
-  return;
- }
- if(d<1||d>sk.range||(t.x!=a.x&&t.y!=a.y))return lg('スキルは空振り');
+ const sk=a.skill,sh=sk.shape||'single';a.sp-=sk.cost;faceTo(a,t);const d=man(a,t);
+ if(d<1||d>sk.range||(sh=='line'&&t.x!=a.x&&t.y!=a.y))return lg('スキルは空振り');
  lg(a.nm+'の'+sk.name+'！');
- const dx=Math.sign(t.x-a.x),dy=Math.sign(t.y-a.y);let lx=a.x,ly=a.y;
- for(let i=1;i<=d;i++){const cx=a.x+dx*i,cy=a.y+dy*i;if(cx<0||cy<0||cx>=W||cy>CY||blk(cx,cy)||[...U,...F,...B].some(o=>o.x==cx&&o.y==cy))break;const e=eAt(cx,cy);if(e)dmg(e,sk.dmg,sk.who);if(!eAt(cx,cy)){lx=cx;ly=cy;}}
- a.x=lx;a.y=ly;
+ let hits=[];
+ if(sh=='single'){const e=eAt(t.x,t.y);if(e)hits=[e];}
+ else if(sh=='cross'){for(const[dx,dy]of[[0,0],[1,0],[-1,0],[0,1],[0,-1]]){const e=eAt(t.x+dx,t.y+dy);if(e)hits.push(e);}}
+ else if(sh=='area'){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const e=eAt(t.x+dx,t.y+dy);if(e)hits.push(e);}}
+ else if(sh=='line'){const dx=Math.sign(t.x-a.x),dy=Math.sign(t.y-a.y);
+  for(let i=1;i<=sk.range;i++){const cx=a.x+dx*i,cy=a.y+dy*i;if(cx<0||cy<0||cx>=W||cy>CY||blk(cx,cy))break;const e=eAt(cx,cy);if(e)hits.push(e);}}
+ else if(sh=='chain'){const f=eAt(t.x,t.y);
+  if(f){hits=[f];let cur=f;while(hits.length<(sk.chain||3)){const nx=E.filter(e=>!hits.includes(e)&&man(e,cur)<=2).sort((p,q)=>man(p,cur)-man(q,cur))[0];if(!nx)break;hits.push(nx);cur=nx;}}}
+ if(!hits.length)lg('（当たった敵はいない）');
+ for(const e of hits)if(!over)hitEnemy(a,e,sk);
 }
 // テスト砲：マップ全体が射程（動作確認用）
 function tst(a){const r=[];for(let y=0;y<=CY;y++)for(let x=0;x<W;x++)r.push({x,y});return r;}
@@ -127,7 +173,7 @@ function testShot(a,t){
 async function run(){
  if(busy||over)return;busy=1;sel=null;
  const au=new Set(F.filter(f=>!ctl(f)));
- for(const a of[...U,...F]){
+ for(const a of[...[...U].sort((p,q)=>agiOf(q)-agiOf(p)),...[...F].sort((p,q)=>agiOf(q)-agiOf(p))]){
   if(over)break;if(!alive(a))continue;
   if(au.has(a))auto(a);
   else{const p=plan.get(a);if(p){mv(a,p.path);if(p.tk)testShot(a,p.t);else if(p.sk&&a.sp>=cost(a))skill(a,p.t);else atk(a,p.t);}}
@@ -135,21 +181,30 @@ async function run(){
  }
  for(const b of[...B]){if(over)break;if(!B.includes(b))continue;let did=0;
   const act=DATA.buildingTypes[b.k].act;
-  if(act&&act.type=='shoot'){const e=E.filter(e=>man(b,e)<=act.range).sort((p,q)=>man(b,p)-man(b,q))[0];if(e){dmg(e,act.dmg,b.k);did=1;}}
+  if(act&&act.type=='shoot'){b.g=(b.g||0)+(act.speed||1);
+   if(b.g>=1){b.g-=1;const e=E.filter(e=>man(b,e)<=act.range).sort((p,q)=>man(b,p)-man(b,q))[0];
+    if(e){const hs=[[0,0],[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dy])=>eAt(e.x+dx,e.y+dy)).filter(Boolean);
+     for(const h of hs)if(!over)dmg(h,calcDmg(act.atk,act.power,defOf(h)),b.k);did=1;}}}
   else if(act&&act.type=='repair'){
    for(const u of U)if(man(b,u)<=act.range&&u.hp<u.mh){u.hp=Math.min(u.mh,u.hp+act.heal);did=1;}
    for(const f of F)if(man(b,f)<=act.range&&f.n<R.fragMax){f.n=Math.min(R.fragMax,f.n+act.fragAdd);did=1;}
    if(did)lg(b.k+'が味方を回復');}
   if(did){draw();await sl(300);}}
- for(const e of[...E].sort(()=>Math.random()-.5)){
+ for(const e of[...E].sort((p,q)=>agiOf(q)-agiOf(p))){
   if(over)break;if(!E.includes(e))continue;
   eAct(e);draw();await sl(300);
+ }
+ if(!over){   // ターン終了時：継続ダメージと、弱体の残りターンを進める
+  for(const e of[...E]){
+   if(e.dot){dmg(e,e.dot.v,'継続ダメージ');if(!E.includes(e))continue;if(--e.dot.t<=0)e.dot=null;}
+   e.buf=(e.buf||[]).map(b=>({...b,t:b.t-1})).filter(b=>b.t>0);
+  }
  }
  if(!over){
   const t=turn,w=DATA.waves;
   if(t<w.bossTurn)spawn(w.perTurn);
-  else if(t==w.bossTurn){spawn(w.normalAtBoss);E.push({x:topX(),y:0,hp:w.bossHp,boss:1,type:'E'});lg('ボスが出現！');}
-  turn++;U.forEach(u=>u.sp=Math.min(R.spMax,u.sp+R.spRegen));plan=new Map();mode='m';lg('--ターン'+turn+'--');
+  else if(t==w.bossTurn){spawn(w.normalAtBoss);E.push(mkEnemy('ボス',1));lg('ボスが出現！');}
+  turn++;U.forEach(u=>u.sp=Math.min(u.spMax,u.sp+(u.spRegen||R.spRegen)));plan=new Map();mode='m';lg('--ターン'+turn+'--');
  }
  busy=0;draw();
  if(over)endBattle();
@@ -177,7 +232,7 @@ function dayView(){
   btns:[...D.commands.map(c=>({l:c.nm,f:()=>{SV.msg=applyCmd(c);SV.step='act';}})),{l:'防衛準備',f:go('prep')}]};
  case 'prep':{const T=DATA.buildingTypes;
   return{st,title:'防衛準備：種類を選ぶ',text:SV.msg||'建てる防衛機関を選んでください（行動は消費しない）',
-  btns:[...Object.keys(T).map(k=>({l:k+'（'+T[k].cost+'pt）',off:SV.pt<T[k].cost||!freeSlots().length,f:()=>{SV.pend=k;SV.msg='';SV.step='prep2';}})),
+  btns:[...Object.keys(T).map(k=>({l:k+'（'+bcost(k)+'pt）',off:SV.pt<bcost(k)||!freeSlots().length,f:()=>{SV.pend=k;SV.msg='';SV.step='prep2';}})),
   {l:'戻る',f:()=>{SV.msg='';SV.step='sel';}}]};}
  case 'prep2':return{st,title:'防衛準備：'+SV.pend+'を建てる場所',text:'設立できる場所を選んでください',
   btns:[...freeSlots().map(([x,y])=>({l:'区画('+x+','+y+')',f:()=>buildAt(SV.pend,x,y)})),{l:'戻る',f:go('prep')}]};
@@ -198,7 +253,7 @@ function dayView(){
 // 設立できる場所のうち、まだ空いている所
 function freeSlots(){return DATA.buildSlots.filter(([x,y])=>!SV.B.some(b=>b.x==x&&b.y==y));}
 // 防衛機関を設立する（ポイントを使って、セーブデータの防衛機関リストに追加）
-function buildAt(k,x,y){const t=DATA.buildingTypes[k];SV.pt-=t.cost;SV.B.push({k,hp:t.hp,mh:t.hp,x,y});SV.msg=k+'を('+x+','+y+')に設立した。';SV.pend=null;SV.step='prep';}
+function buildAt(k,x,y){const t=DATA.buildingTypes[k];SV.pt-=bcost(k);SV.B.push({k,hp:t.hp,mh:t.hp,x,y});SV.msg=k+'を('+x+','+y+')に設立した。';SV.pend=null;SV.step='prep';}
 
 // ===== セーブ・ロード =====
 // 保存先は Store にまとめてある。あとで別の保存先（ファイル書き出し等）にするときは、ここだけ差し替えればOK
@@ -208,7 +263,7 @@ const Store={
  load(){try{return JSON.parse(localStorage.getItem(this.key));}catch(e){return null;}},
  clear(){try{localStorage.removeItem(this.key);}catch(e){}}
 };
-const SAVE_VER=1;   // セーブデータの形を変えたら上げる（古いデータを見分ける番号）
+const SAVE_VER=2;   // セーブデータの形を変えたら上げる（古いデータを見分ける番号）
 function saveGame(){Store.save({ver:SAVE_VER,sv:SV});}
 // 読み込む。壊れている・古い・無いときは null を返す
 function loadGame(){
@@ -240,3 +295,10 @@ function distConfirm(){
  SV.star=rem;SV.draft={res:0,mp:0,mem:zeroMem()};
  if(SV.day>=DATA.day.days)SV.step='end';else{SV.day++;SV.slot=0;SV.step='ev';SV.pt+=DATA.day.dayPt;}
 }
+
+// ===== 技の切り替え（試作用）：ユニットを選んだ状態で、キーボードの 1・2・3 を押すと技が変わる =====
+if(typeof document!=='undefined')document.addEventListener('keydown',ev=>{
+ const i=parseInt(ev.key)-1;
+ if(!(sel&&sel.type=='U'&&sel.skills&&sel.skills[i]))return;
+ sel.skill=sel.skills[i];sel.skillIdx=i;lg(sel.nm+'の技を「'+sel.skill.name+'」（SP'+sel.skill.cost+'）に切り替え');draw();
+});
