@@ -7,7 +7,7 @@ rules:{
  protoSize:12,         // 試作マップの大きさ（rel座標の基準）
  cityHp:1600,          // 街のHP（ユニット4人ぶんくらい）
  cityDef:40,           // 街の防御力（敵の攻撃力に対して使う）
- moveRange:2,          // 1ターンの移動量（ユニット個別の move があればそちらを優先）
+ moveRange:3,          // 1ターンの移動量（ユニット・フラグメント・敵に個別の move があればそちらを優先）
  controlRange:3,       // フラグメントへ指示できる距離（ユニットから）
  spInit:50,spMax:50,spRegen:6,  // spMax＝表示用の最大値／spRegen＝毎ターンの回復量（ユニットごとに spMax・spRegen を持たせてもOK）
  fragMax:5,            // フラグメントの最大体数
@@ -103,13 +103,13 @@ day:{
 // variant:1 の敵は、下の variants（赤・水・紫）のどれかの弱点・抵抗をランダムに持つ
 enemy:{
  types:{
-  '雑魚':{life:60,atk:25,def:20,agi:45,kind:'物理',move:2,variant:1},
-  '標準':{life:120,atk:30,def:30,agi:40,kind:'物理',move:2,variant:1},
-  '砲撃':{life:90,atk:55,def:15,agi:35,kind:'魔力',move:2,variant:1},
-  '突撃':{life:80,atk:35,def:20,agi:50,kind:'物理',move:3,weak:['凍結'],resist:['電気']},
-  '装甲':{life:240,atk:30,def:60,agi:30,kind:'工学',move:2,weak:['真空'],resist:['電気']},
-  '精鋭':{life:350,atk:50,def:60,agi:40,kind:'魔力',move:2,weak:['圧壊','斬切'],resist:['炎熱','凍結','電気']},
-  'ボス':{life:1200,atk:70,def:80,agi:45,kind:'魔力',move:2,weak:['真空','圧壊'],resist:['炎熱','凍結','電気']}
+  '雑魚':{life:60,atk:25,def:20,agi:45,kind:'物理',move:3,variant:1},
+  '標準':{life:120,atk:30,def:30,agi:40,kind:'物理',move:3,variant:1},
+  '砲撃':{life:90,atk:55,def:15,agi:35,kind:'魔力',move:3,variant:1},
+  '突撃':{life:80,atk:35,def:20,agi:50,kind:'物理',move:4,weak:['凍結'],resist:['電気']},
+  '装甲':{life:240,atk:30,def:60,agi:30,kind:'工学',move:3,weak:['真空'],resist:['電気']},
+  '精鋭':{life:350,atk:50,def:60,agi:40,kind:'魔力',move:3,weak:['圧壊','斬切'],resist:['炎熱','凍結','電気']},
+  'ボス':{life:1200,atk:70,def:80,agi:45,kind:'魔力',move:3,weak:['真空','圧壊'],resist:['炎熱','凍結','電気']}
  },
  variants:[{c:'赤',weak:'炎熱',resist:'電気'},{c:'水',weak:'凍結',resist:'炎熱'},{c:'紫',weak:'電気',resist:'凍結'}],
  grow:0.1,                                              // 1日進むごとの体力・攻撃力・防御力の上がり方（+10%）
