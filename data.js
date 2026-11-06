@@ -51,8 +51,18 @@ units:[
 ],
 // 出撃メンバー：[初日, 2日目以降]
 party:[['キュリー','エルジー','シルヴェスター'],['キュリー','エルジー','シルヴェスター','シャノン']],
-// フラグメント：n＝個体数（体力兼攻撃回数）、fat＝1体あたりの攻撃力、fdf＝防御力、ind＝1体が耐えられるダメージ
-fragments:[{nm:'F1',n:5,fat:10,fdf:20,ind:25,agi:30,x:4,y:9},{nm:'F2',n:5,fat:10,fdf:20,ind:25,agi:30,x:7,y:9}],
+// フラグメントの種類：n＝個体数（初期）、nMax＝星屑で増やせる上限（強化画面は後で）、fat＝1体の攻撃力、fdf＝防御力、ind＝1体の耐久、
+//   move＝移動量、agi＝行動順、reach＝攻撃範囲（line2＝隣＋直線2マス／adj＝隣のみ／r3＝距離3以内）、taunt＝敵が優先して狙う
+//   群れのHP＝個体数×ind。ダメージを受けると群れHPが減り、個体数は「残りHP÷ind（切り上げ）」になる
+fragTypes:{
+ '標準':{n:5,nMax:7,fat:10,fdf:20,ind:25,move:3,agi:30,reach:'line2'},
+ '火力型':{n:5,nMax:6,fat:14,fdf:15,ind:20,move:3,agi:30,reach:'line2'},
+ '射程型':{n:5,nMax:6,fat:8,fdf:15,ind:20,move:3,agi:30,reach:'r3'},
+ '防御型':{n:6,nMax:8,fat:6,fdf:35,ind:40,move:2,agi:25,reach:'adj',taunt:1},
+ '移動型':{n:4,nMax:6,fat:8,fdf:15,ind:20,move:5,agi:45,reach:'line2'}
+},
+// 出撃するフラグメント（kind＝上の種類）
+fragments:[{nm:'F1',kind:'火力型',x:4,y:9},{nm:'F2',kind:'防御型',x:7,y:9}],
 // 地形：v=1 障害物、v=2 空洞
 terrain:[
  {v:1,rel:[[3,4],[4,4],[8,5],[9,5],[6,3],[2,2],[10,7]]},

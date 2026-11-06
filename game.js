@@ -37,7 +37,7 @@ function pickType(){
 // 敵から味方・防衛機関へのダメージ（フラグメントは「失う体数」で返す）
 function eDmg(e,o){
  if(o.type=='U')return calcDmg(e.atk,100,o.def*((o.defMul&&o.defMul[e.kind])||1));
- if(o.type=='F')return Math.max(1,Math.ceil(calcDmg(e.atk,100,o.fdf)/o.ind));
+ if(o.type=='F')return calcDmg(e.atk,100,o.fdf);   // 群れHPへのダメージ
  return calcDmg(e.atk,100,R.cityDef);
 }
 // 敵1体に技・攻撃を当てる（sk＝power・elem・kind・ignore・fx）
@@ -61,7 +61,7 @@ const topX=()=>{const fr=[...Array(W).keys()].filter(x=>!occ(x,0));return fr[Mat
 function init(c){
  const pty=DATA.party[dayNow()>1?1:0];   // 初日は3人、2日目以降は4人
  U=DATA.units.filter(d=>pty.includes(d.nm)).map(d=>({...d,mh:d.hp,sp:d.spMax,skill:d.skills[d.skillIdx||0],x:d.x+OX,y:d.y+OY,face:'r',type:'U'}));
- F=DATA.fragments.map(d=>({...d,x:d.x+OX,y:d.y+OY,type:'F'}));
+ F=DATA.fragments.map(d=>{const t=DATA.fragTypes[d.kind];return{...t,nm:d.nm,kind:d.kind,cap:t.n,hp:t.n*t.ind,x:d.x+OX,y:d.y+OY,type:'F'};});   // cap＝今の個体数の上限（修理所の回復先）
  T=Array.from({length:H},()=>Array(W).fill(0));TI=Array.from({length:H},()=>Array(W).fill(null));
  for(const t of DATA.terrain){
   for(const[x,y]of t.abs||[]){T[y][x]=t.v;if(t.img)TI[y][x]=t.img;}
@@ -92,11 +92,13 @@ function reach(a){
    d[k(nx,ny)]={x:nx,y:ny,p:[...c.p,[nx,ny]],s:c.s+1};q.push(d[k(nx,ny)]);}}
  return Object.values(d);
 }
-// 攻撃できるマスの一覧（フラグメントは隣＋直線2マス、ユニットはrange以内）
+// フラグメントの攻撃範囲：d＝距離、st＝縦横の直線上か
+const fok=(a,d,st)=>a.reach=='r3'?(d>=1&&d<=3):a.reach=='adj'?d==1:(d==1||(d==2&&st));
+// 攻撃できるマスの一覧（フラグメントは種類ごとの範囲、ユニットはrange以内）
 function tg(a,px,py){
  const r=[];
  for(let y=0;y<=CY;y++)for(let x=0;x<W;x++){const d=Math.abs(x-px)+Math.abs(y-py);
-  const ok=a.type=='F'?(d==1||(d==2&&(x==px||y==py))):(d>=1&&d<=a.range);
+  const ok=a.type=='F'?fok(a,d,x==px||y==py):(d>=1&&d<=a.range);
   if(ok)r.push({x,y});}
  return r;
 }
@@ -105,7 +107,7 @@ function chk(){if(!over&&(city<=0||!U.length)){over=1;lg('■ゲームオーバ�
 function hurt(o,v){
  if(o.type=='B'){o.hp-=v;if(o.hp<=0){B.splice(B.indexOf(o),1);lg(o.nm+'が壊れた');}return;}
  if(o.type=='U'){o.hp-=v;if(o.hp<=0){U.splice(U.indexOf(o),1);lg(o.nm+'が倒れた');}}
- else{o.n-=v;if(o.n<=0){F.splice(F.indexOf(o),1);lg(o.nm+'が全滅');}}
+ else{o.hp-=v;o.n=Math.max(0,Math.ceil(o.hp/o.ind));if(o.hp<=0){F.splice(F.indexOf(o),1);lg(o.nm+'が全滅');}}   // 群れHPから引いて、個体数を計算し直す
 }
 function dmg(e,v,who,tag=''){
  e.hp-=v;lg(who+'→'+e.nm+'に'+v+'ダメージ'+tag);
@@ -117,7 +119,8 @@ function atk(a,t){
  faceTo(a,t);
  const d=man(a,t);
  if(a.type=='F'){
-  if(d<1||d>2||(t.x!=a.x&&t.y!=a.y))return lg(a.nm+'の攻撃は空振り');
+  if(!fok(a,d,t.x==a.x||t.y==a.y))return lg(a.nm+'の攻撃は空振り');
+  if(a.reach=='r3'){const e=eAt(t.x,t.y);if(e)return dmg(e,calcDmg(a.n*a.fat,100,defOf(e)),a.nm);return lg(a.nm+'の攻撃は空振り');}
   const dx=Math.sign(t.x-a.x),dy=Math.sign(t.y-a.y);
   for(let i=1;i<=d;i++){const cx=a.x+dx*i,cy=a.y+dy*i;if(T[cy][cx]==1)break;const e=eAt(cx,cy);if(e)return dmg(e,calcDmg(a.n*a.fat,100,defOf(e)),a.nm);}
   return lg(a.nm+'の攻撃は空振り');
@@ -140,7 +143,7 @@ function eAct(e){
   mv(e,c.p);m=c.s;
  }
  if(e.y==CY){const v=calcDmg(e.atk,100,R.cityDef);city-=v;lg(e.nm+'が街を攻撃！ '+v+'ダメージ 街HP'+Math.max(city,0));}
- else if(m<(e.move||R.moveRange)){const o=[...U,...F,...B].find(o=>man(o,e)==1);if(o){hurt(o,eDmg(e,o));lg(e.nm+'が'+o.nm+'を攻撃');}}
+ else if(m<(e.move||R.moveRange)){const adj=[...U,...F,...B].filter(o=>man(o,e)==1),o=adj.find(o=>o.taunt)||adj[0];if(o){hurt(o,eDmg(e,o));lg(e.nm+'が'+o.nm+'を攻撃');}}
  chk();
 }
 // 街に近いほど小さい数字になる距離表（敵の進路決めに使う）
@@ -187,7 +190,7 @@ async function run(){
      for(const h of hs)if(!over)dmg(h,calcDmg(act.atk,act.power,defOf(h)),b.k);did=1;}}}
   else if(act&&act.type=='repair'){
    for(const u of U)if(man(b,u)<=act.range&&u.hp<u.mh){u.hp=Math.min(u.mh,u.hp+act.heal);did=1;}
-   for(const f of F)if(man(b,f)<=act.range&&f.n<R.fragMax){f.n=Math.min(R.fragMax,f.n+act.fragAdd);did=1;}
+   for(const f of F)if(man(b,f)<=act.range&&f.n<f.cap){f.hp=Math.min(f.cap*f.ind,f.hp+act.fragAdd*f.ind);f.n=Math.ceil(f.hp/f.ind);did=1;}
    if(did)lg(b.k+'が味方を回復');}
   if(did){draw();await sl(300);}}
  for(const e of[...E].sort((p,q)=>agiOf(q)-agiOf(p))){
@@ -213,7 +216,7 @@ async function run(){
 // ===== 1日の流れ（セーブデータ SV に全部まとめる。座標は rel 基準）=====
 let SV;
 function zeroMem(){return Object.fromEntries(DATA.units.map(u=>[u.nm,0]));}   // ユニットごとの記憶の数（0で初期化）
-function newSave(){return{day:1,slot:0,step:'ev',city:R.cityHp,pt:DATA.day.startPt,pend:null,star:0,mp:0,mem:zeroMem(),draft:{res:0,mp:0,mem:zeroMem()},B:DATA.buildings.map(b=>({k:b.k,hp:b.hp,mh:b.hp,x:b.x,y:b.y})),msg:''};}
+function newSave(){return{day:1,slot:0,step:'ev',city:R.cityHp,pt:DATA.day.startPt,pend:null,star:0,mpU:0,mpF:0,mem:zeroMem(),draft:{res:0,mpU:0,mpF:0,mem:zeroMem()},B:DATA.buildings.map(b=>({k:b.k,hp:b.hp,mh:b.hp,x:b.x,y:b.y})),msg:''};}
 // 行動の効果を適用して、結果の文章を返す
 function applyCmd(c){
  let t=c.text;
@@ -225,7 +228,7 @@ function saveBattle(){SV.star+=DATA.day.starPerNight;SV.city=Math.max(city,0);SV
 // いまの場面の表示内容を返す（描き方は main.js）
 function dayView(){
  const D=DATA.day,sl=D.slots[SV.slot],hd=SV.day+'日目 '+sl,go=(step,f)=>()=>{SV.step=step;if(f)f();};
- const st=hd+'　街'+SV.city+'　防衛機関'+SV.B.length+'基　ポイント'+SV.pt+'　魔力'+SV.mp+'　星屑'+SV.star;
+ const st=hd+'　街'+SV.city+'　防衛機関'+SV.B.length+'基　ポイント'+SV.pt+'　ユニット強化'+SV.mpU+'　フラグメント強化'+SV.mpF+'　星屑'+SV.star;
  switch(SV.step){
  case 'ev':return{st,title:hd,text:D.slotEvents[SV.slot],btns:[{l:'次へ',f:go('sel')}]};
  case 'sel':return{st,title:hd+'：行動を選ぶ',text:'どこへ向かう？',
@@ -240,9 +243,9 @@ function dayView(){
   if(SV.slot<D.slots.length-1){SV.slot++;SV.step='ev';}else SV.step='night';}}]};
  case 'night':return{st,title:SV.day+'日目 夜',text:'敵が近づいてくる…',btns:[{l:'防衛バトル開始',f:startBattle}]};
  case 'clear':return{st,title:SV.day+'日目 終了',text:'夜を守り抜いた。星屑を'+DATA.day.starPerNight+'手に入れた。街HP'+SV.city+'、防衛機関'+SV.B.length+'基。',
-  btns:[{l:'星屑を振り分ける',f:go('dist',()=>{SV.draft={res:0,mp:0,mem:zeroMem()};})}]};
+  btns:[{l:'星屑を振り分ける',f:go('dist',()=>{SV.draft={res:0,mpU:0,mpF:0,mem:zeroMem()};})}]};
  case 'dist':{const b=distBuckets(),rem=distRemain();
-  return{st,title:'星屑の振り分け',text:'星屑'+SV.star+'（未振り分け'+rem+'）。資源→防衛機関のポイント、魔力→ユニット強化、記憶→ユニットのストーリー。残りは持ち越せます。',
+  return{st,title:'星屑の振り分け',text:'星屑'+SV.star+'（未振り分け'+rem+'）。資源→防衛機関のポイント、ユニット強化→ユニットの強化、フラグメント強化→フラグメントの個体数・属性・強化、記憶→ユニットのストーリー。残りは持ち越せます。',
   rows:b.map(x=>({label:x.l+'　計'+x.total(),val:x.get(),minus:()=>{if(x.get()>0)x.add(-1);},plus:()=>{if(distRemain()>0)x.add(1);},minusOff:x.get()<=0,plusOff:rem<=0})),
   btns:[{l:'確定',f:distConfirm}]};}
  case 'lose':return{st,title:'ゲームオーバー',text:'街を守れなかった…',btns:[{l:'最初から',f:newGame}]};
@@ -263,7 +266,7 @@ const Store={
  load(){try{return JSON.parse(localStorage.getItem(this.key));}catch(e){return null;}},
  clear(){try{localStorage.removeItem(this.key);}catch(e){}}
 };
-const SAVE_VER=2;   // セーブデータの形を変えたら上げる（古いデータを見分ける番号）
+const SAVE_VER=3;   // セーブデータの形を変えたら上げる（古いデータを見分ける番号）
 function saveGame(){Store.save({ver:SAVE_VER,sv:SV});}
 // 読み込む。壊れている・古い・無いときは null を返す
 function loadGame(){
@@ -271,28 +274,29 @@ function loadGame(){
  if(!o||o.ver!==SAVE_VER||!o.sv)return null;
  const s={...newSave(),...o.sv};   // あとで項目を増やしても、足りない分は初期値で補う
  if(!Array.isArray(s.B)||!['ev','sel','prep','prep2','act','night','clear','dist','lose','end'].includes(s.step))return null;
- s.mem={...zeroMem(),...s.mem};s.draft={res:0,mp:0,...s.draft,mem:{...zeroMem(),...(s.draft&&s.draft.mem)}};
+ s.mem={...zeroMem(),...s.mem};s.draft={res:0,mpU:0,mpF:0,...s.draft,mem:{...zeroMem(),...(s.draft&&s.draft.mem)}};
  s.B=s.B.filter(b=>DATA.buildingTypes[b.k]);   // 種類が消えた防衛機関は除く
  if(s.step=='prep2'){s.step='prep';s.pend=null;}   // 場所選びの途中は、種類選びに戻す
  return s;
 }
 
 // ===== 星屑の振り分け =====
-// 振り分け先の一覧：資源・魔力と、ユニットごとの記憶（誰に渡すかを選べる）
+// 振り分け先の一覧：資源・ユニット強化・フラグメント強化と、ユニットごとの記憶（誰に渡すかを選べる）
 function distBuckets(){
  const D=SV.draft;
  return[
   {l:'資源（防衛機関）',get:()=>D.res,add:n=>{D.res+=n;},total:()=>SV.pt+'pt'},
-  {l:'魔力（ユニット強化）',get:()=>D.mp,add:n=>{D.mp+=n;},total:()=>SV.mp},
+  {l:'ユニット強化',get:()=>D.mpU,add:n=>{D.mpU+=n;},total:()=>SV.mpU},
+  {l:'フラグメント強化',get:()=>D.mpF,add:n=>{D.mpF+=n;},total:()=>SV.mpF},
   ...DATA.units.map(u=>({l:'記憶：'+u.nm,get:()=>D.mem[u.nm]||0,add:n=>{D.mem[u.nm]=(D.mem[u.nm]||0)+n;},total:()=>SV.mem[u.nm]||0}))
  ];
 }
-function distRemain(){const D=SV.draft;return SV.star-D.res-D.mp-Object.values(D.mem).reduce((a,b)=>a+b,0);}
+function distRemain(){const D=SV.draft;return SV.star-D.res-D.mpU-D.mpF-Object.values(D.mem).reduce((a,b)=>a+b,0);}
 // 確定：振り分けを実際の持ち物に反映して、翌朝（または終了）へ
 function distConfirm(){
  const D=SV.draft,rem=distRemain();
- SV.pt+=D.res;SV.mp+=D.mp;for(const k in D.mem)SV.mem[k]=(SV.mem[k]||0)+D.mem[k];
- SV.star=rem;SV.draft={res:0,mp:0,mem:zeroMem()};
+ SV.pt+=D.res;SV.mpU+=D.mpU;SV.mpF+=D.mpF;for(const k in D.mem)SV.mem[k]=(SV.mem[k]||0)+D.mem[k];
+ SV.star=rem;SV.draft={res:0,mpU:0,mpF:0,mem:zeroMem()};
  if(SV.day>=DATA.day.days)SV.step='end';else{SV.day++;SV.slot=0;SV.step='ev';SV.pt+=DATA.day.dayPt;}
 }
 
