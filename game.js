@@ -1,7 +1,7 @@
 // ゲームのルール処理（見た目の描画は render.js）
 const G0=DATA.gfx,R=DATA.rules,W=R.mapW,H=R.mapH,CY=H-2,VW=R.viewW,VH=R.viewH;
 const OX=(W-R.protoSize)>>1,OY=H-R.protoSize;
-let camX,camY,pd,U,F,E,B,T,TI,OB,turn,city,over,won,busy,sel,mode,plan,log,hpq;
+let camX,camY,pd,U,F,E,B,T,TI,OB,turn,city,over,won,busy,sel,mode,plan,log,hpq,insp=null,acted=new Set();   // insp＝下の詳細欄に出している対象、acted＝今ターン行動し終えた者（行動順の表示用）
 const man=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
 const occ=(x,y)=>[...U,...F,...E,...B].some(o=>o.x==x&&o.y==y);
 const eAt=(x,y)=>E.find(o=>o.x==x&&o.y==y);
@@ -69,7 +69,7 @@ function init(c){
  }
  B=(c?c.B:DATA.buildings.map(b=>({...b,mh:b.hp}))).map(b=>({k:b.k,nm:b.k,hp:b.hp,mh:b.mh,x:b.x+OX,y:b.y+OY,type:'B'}));  // c＝前の日からの持ち越し
  OB=buildObjects();
- camX=(W-VW)/2;camY=H-VH;E=[];turn=1;city=c?c.city:R.cityHp;over=0;won=0;busy=0;sel=null;mode='m';plan=new Map();
+ camX=(W-VW)/2;camY=H-VH;E=[];turn=1;city=c?c.city:R.cityHp;over=0;won=0;busy=0;sel=null;insp=null;acted=new Set();mode='m';plan=new Map();
  log=['ターン1：味方をタップして行動を決め、「ターン実行」'];
  spawn(DATA.waves.initial);draw();
 }
@@ -174,13 +174,13 @@ function testShot(a,t){
  const e=eAt(t.x,t.y);if(e)dmg(e,ds.dmg,ds.name);else lg('空振り');
 }
 async function run(){
- if(busy||over)return;busy=1;sel=null;
+ if(busy||over)return;busy=1;sel=null;acted=new Set();
  const au=new Set(F.filter(f=>!ctl(f)));
  for(const a of[...[...U].sort((p,q)=>agiOf(q)-agiOf(p)),...[...F].sort((p,q)=>agiOf(q)-agiOf(p))]){
   if(over)break;if(!alive(a))continue;
   if(au.has(a))auto(a);
   else{const p=plan.get(a);if(p){mv(a,p.path);if(p.tk)testShot(a,p.t);else if(p.sk&&a.sp>=cost(a))skill(a,p.t);else atk(a,p.t);}}
-  draw();await sl(300);
+  acted.add(a);draw();await sl(300);
  }
  for(const b of[...B]){if(over)break;if(!B.includes(b))continue;let did=0;
   const act=DATA.buildingTypes[b.k].act;
@@ -195,7 +195,7 @@ async function run(){
   if(did){draw();await sl(300);}}
  for(const e of[...E].sort((p,q)=>agiOf(q)-agiOf(p))){
   if(over)break;if(!E.includes(e))continue;
-  eAct(e);draw();await sl(300);
+  eAct(e);acted.add(e);draw();await sl(300);
  }
  if(!over){   // ターン終了時：継続ダメージと、弱体の残りターンを進める
   for(const e of[...E]){
@@ -209,7 +209,7 @@ async function run(){
   else if(t==w.bossTurn){spawn(w.normalAtBoss);E.push(mkEnemy('ボス',1));lg('ボスが出現！');}
   turn++;U.forEach(u=>u.sp=Math.min(u.spMax,u.sp+(u.spRegen||R.spRegen)));plan=new Map();mode='m';lg('--ターン'+turn+'--');
  }
- busy=0;draw();
+ acted=new Set();busy=0;draw();
  if(over)endBattle();
 }
 

@@ -27,7 +27,7 @@ function rockDraw(o){const im=getImg(o.img);if(!im)return;const M=g.getTransform
  g.save();g.setTransform(1,0,0,1,0,0);g.drawImage(im,(l+r)/2-w/2,b-h,w,h);g.restore();}
 const EX=4,cc=(v,m)=>Math.max(-VW/2-EX,Math.min(m+VW/2+EX,v));
 const ft=(t,x,y)=>{const p=g.getTransform().transformPoint({x,y});g.save();g.setTransform(1,0,0,1,0,0);g.fillText(t,p.x,p.y);g.restore();};
-function mini(){const M=G.mini,m=M.scale,mx=CW-W*m-4,my=4;g.fillStyle='#000a';g.fillRect(mx-1,my-1,W*m+2,H*m+2);
+function mini(){const M=G.mini,m=M.scale,mx=4,my=4;g.fillStyle='#000a';g.fillRect(mx-1,my-1,W*m+2,H*m+2);
  for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(T[y][x]){g.fillStyle=T[y][x]==1?M.obstacle:M.hole;g.fillRect(mx+x*m,my+y*m,m,m);}
  for(const[a,c]of[[B,M.building],[E,M.enemy],[F,M.fragment],[U,M.unit]])for(const o of a){g.fillStyle=c;g.fillRect(mx+o.x*m,my+o.y*m,m,m);}
  g.save();g.beginPath();g.rect(mx-1,my-1,W*m+2,H*m+2);g.clip();g.strokeStyle='#fff';g.lineWidth=1;g.strokeRect(mx+camX*m,my+camY*m,VW*m,VH*m);g.restore();}
@@ -40,6 +40,7 @@ const drawE=e=>{const m=e.boss?2:6;g.fillStyle=e.boss?C.boss:C.enemy;g.fillRect(
 const drawU=u=>{const pk=pick(u);if(pk)spr(u,pk);else dot(u,C.unit,u.n+u.hp);};
 const drawF=f=>dot(f,ctl(f)?C.fragOn:C.fragOff,'★'+f.n);
 function draw(){
+ if(!U)return;   // バトル開始前は描かない
  g=MAIN;g.fillStyle=C.bg;g.fillRect(0,0,CW,CH);
  g.save();{const a=TW/2/S,b=TH/2/S,cx=(camX+VW/2)*S,cy=(camY+VH/2)*S;g.setTransform(a,b,-a,b,CW/2-a*cx+a*cy,CH/2-b*cx-b*cy);}
  // 地面：画像があるマスは後でまとめて描き、無いマスは従来の色付き四角
@@ -83,8 +84,58 @@ function draw(){
   g=rg;for(const r of fr)r.fn();g=gg;it.fn();g=MAIN;
   gg.save();gg.setTransform(1,0,0,1,0,0);gg.globalCompositeOperation='destination-in';gg.drawImage(rcv,0,0);gg.restore();
   MAIN.save();MAIN.setTransform(1,0,0,1,0,0);MAIN.globalAlpha=G.ghostAlpha;MAIN.drawImage(gcv,0,0);MAIN.restore();}
- if(sel){g.strokeStyle=C.select;g.lineWidth=3;g.strokeRect(sel.x*S+2,sel.y*S+2,S-4,S-4);g.lineWidth=1;}
- g.restore();mini();
- document.getElementById('st').textContent='ターン'+turn+'　街'+Math.max(city,0)+'　'+U.map(u=>u.nm+u.hp+'(SP'+u.sp+')').join(' ')+'　敵'+E.length+'体'+(sel?(mode=='m'?'　移動先をタップ':'　攻撃マスをタップ（なしなら下のボタン）'):'');
- document.getElementById('log').innerHTML=log.slice(-6).join('<br>');
+ const ci=cur();
+ if(ci&&ci!==sel){g.strokeStyle='#5ae6ff';g.lineWidth=3;g.strokeRect(ci.x*S+2,ci.y*S+2,S-4,S-4);g.lineWidth=1;}   // 詳細を見ている対象
+ if(sel){g.strokeStyle=C.select;g.lineWidth=3;g.strokeRect(sel.x*S+2,sel.y*S+2,S-4,S-4);g.lineWidth=1;
+  // 「動かすキャラ」の頭上に▽
+  const p=g.getTransform().transformPoint({x:sel.x*S+S/2,y:sel.y*S+S/2}),ty=p.y-(pick(sel)?134:30);
+  g.save();g.setTransform(1,0,0,1,0,0);g.fillStyle=C.plan;g.beginPath();g.moveTo(p.x-9,ty-12);g.lineTo(p.x+9,ty-12);g.lineTo(p.x,ty+2);g.fill();g.restore();}
+ g.restore();mini();queue();
+ ui();
+}
+
+// 今、下の詳細欄に出す対象（タップして調べたもの→なければ選択中の味方）
+const cur=()=>{const all=[...U,...F,...E,...B];return all.includes(insp)?insp:(all.includes(sel)?sel:null);};
+// マップ右の行動順（上が「動かすキャラ／敵」、下がNEXT）。今は 味方→フラグメント→敵 の順で、AGIが高い順
+function queue(){
+ const by=a=>[...a].sort((p,q)=>(q.agi||40)-(p.agi||40)),L=[...by(U),...by(F),...by(E)].filter(o=>!acted.has(o)).slice(0,6);
+ const cx=CW-30,tx=(t,x,y,f)=>{g.font='bold '+f+'px sans-serif';g.lineWidth=3;g.strokeStyle=C.textDark;g.strokeText(t,x,y);g.fillStyle=C.textLight;g.fillText(t,x,y);};
+ g.save();g.setTransform(1,0,0,1,0,0);g.textAlign='center';g.textBaseline='middle';
+ g.fillStyle='#0007';g.fillRect(cx-24,2,48,250);
+ tx('行動順',cx,12,11);
+ let y=22;
+ L.forEach((o,i)=>{const s=i?30:38,x=cx-s/2;
+  g.fillStyle=o.type=='E'?(o.boss?C.boss:C.enemy):o.type=='F'?C.fragOn:C.unit;g.fillRect(x,y,s,s);
+  if(o===sel||o===cur()){g.strokeStyle=o===sel?C.select:'#5ae6ff';g.lineWidth=2;g.strokeRect(x,y,s,s);}
+  g.fillStyle=o.type=='E'?C.textLight:C.textDark;g.font='bold '+(i?14:18)+'px sans-serif';g.fillText(o.type=='U'?o.n:o.type=='F'?'★':o.nm[0],cx,y+s/2);
+  if(i==0){g.fillStyle=C.plan;g.beginPath();g.moveTo(x-12,y+s/2-6);g.lineTo(x-12,y+s/2+6);g.lineTo(x-3,y+s/2);g.fill();}
+  if(i==1)tx('NEXT',x-22,y+s/2,11);
+  y+=s+6;});
+ g.restore();
+}
+// 画面下の表示（上の状態バー・味方カード・詳細欄・履歴）
+const SH={single:'単体',cross:'十字',area:'3×3',line:'直線',chain:'連鎖'},RC={line2:'隣＋直線2マス',adj:'隣のみ',r3:'距離3以内'};
+function ui(){
+ const $=id=>document.getElementById(id),pc=(v,m)=>Math.max(0,Math.min(100,m?v/m*100:0)),mul=m=>Object.entries(m||{}).map(([k,v])=>k+'×'+v).join(' '),row=(k,v)=>'<div class="r"><span>'+k+'</span><b>'+v+'</b></div>';
+ $('st').textContent='ターン'+turn+'　街LIFE '+Math.max(city,0)+' / '+R.cityHp;
+ $('hint').textContent=sel?(mode=='m'?'移動先をタップ（その場なら自分のマス）':mode=='a'?'攻撃マスをタップ（なしなら「攻撃なし」）':'技の対象マスをタップ'):'';
+ $('log').innerHTML=log.slice(-6).join('<br>');
+ $('party').innerHTML=[...U,...F].map((a,i)=>{const u=a.type=='U',mh=u?a.mh:a.cap*a.ind,
+  ico=u&&SPR[a.sprite]&&SPR[a.sprite].r.ok?'<img src="'+a.sprite+'_r.png">':'<span>'+(u?a.n:'★')+'</span>',
+  sp=u?'<div class="bar sp"><i style="width:'+pc(a.sp,a.spMax)+'%"></i><b>'+a.sp+'</b></div>':'<div class="bar nb"></div>';
+  return '<div class="pc'+(a===sel?' on':'')+(u||ctl(a)?'':' off')+'" data-k="'+i+'"><div class="ic"'+(u?'':' style="background:'+C.fragOn+'"')+'>'+ico+'</div><div class="bs"><div class="bar"><i style="width:'+pc(a.hp,mh)+'%"></i><b>'+Math.ceil(a.hp)+'</b></div>'+sp+'</div></div>';}).join('');
+ const o=cur();
+ if(!o){$('pic').innerHTML='';$('stat').innerHTML='<div class="mt">マップの味方・敵をタップすると、ここに詳細が出ます</div>';$('state').innerHTML='';$('skills').innerHTML='';return;}
+ const u=o.type=='U',e=o.type=='E',f=o.type=='F',col=e?(o.boss?C.boss:C.enemy):f?C.fragOn:u?C.unit:'#e0a030';
+ $('pic').innerHTML=(u&&SPR[o.sprite]&&SPR[o.sprite].r.ok?'<img src="'+o.sprite+'_r.png">':'<div class="big" style="background:'+col+(e?';color:#fff':'')+'">'+(u?o.n:f?'★':e?o.nm[0]:o.k[0])+'</div>')+'<div class="nm">'+o.nm+'</div>';
+ let st='';
+ if(u)st=row('LIFE',o.hp+'/'+o.mh)+row('SP',o.sp+'/'+o.spMax)+row('ATK',o.atk)+'<small>'+mul(o.atkMul)+'</small>'+row('DEF',o.def)+'<small>'+mul(o.defMul)+'</small>'+row('AGI',o.agi)+row('移動',o.move||R.moveRange)+row('射程',o.range);
+ else if(e)st=row('LIFE',o.hp+'/'+o.mh)+row('ATK',o.atk)+row('DEF',Math.round(defOf(o)))+row('AGI',o.agi)+row('移動',o.move||R.moveRange)+row('種別',o.kind)+row('弱点',(o.weak||[]).join('・')||'なし')+row('抵抗',(o.resist||[]).join('・')||'なし');
+ else if(f)st=row('個体数',o.n)+row('群れLIFE',Math.ceil(o.hp)+'/'+o.cap*o.ind)+row('FAT',o.fat)+row('FDF',o.fdf)+row('AGI',o.agi)+row('移動',o.move)+row('範囲',RC[o.reach]||'')+row('型',o.kind);
+ else st=row('LIFE',o.hp+'/'+o.mh)+row('種類',o.k);
+ $('stat').innerHTML=st;
+ const bf=(o.buf||[]).map(b=>(b.def?'DEF '+Math.round(b.def*100)+'%':'AGI '+Math.round(b.agi*100)+'%')+'（残り'+b.t+'ターン）');
+ if(o.dot)bf.push('継続ダメージ '+o.dot.v+'（残り'+o.dot.t+'ターン）');
+ $('state').innerHTML=bf.length?bf.map(t=>'<div>'+t+'</div>').join(''):'<div class="mt">なし</div>';
+ $('skills').innerHTML=u?o.skills.map((s,i)=>'<div class="sk'+(o.skill===s?' on':'')+(o.sp<s.cost?' off':'')+'" data-i="'+i+'"><b>'+s.name+'</b><small>'+(s.elem=='auto'?'自動':s.elem)+'　威力'+s.power+'　SP'+s.cost+'　射程'+s.range+'　'+SH[s.shape||'single']+'</small></div>').join(''):'<div class="mt">なし</div>';
 }

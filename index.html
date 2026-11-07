@@ -4,22 +4,50 @@
 <title>STARDUST GARDEN 防衛バトル試作</title>
 <style>
 body{margin:0;background:#0a0a1f;color:#e6e6ff;font-family:"Hiragino Sans","Noto Sans JP",sans-serif;text-align:center}
-#st{padding:8px;font-size:14px}
-canvas{width:100%;max-width:528px;touch-action:none;background:#14143a}
-button{font:inherit;font-size:15px;padding:8px 12px;margin:4px;border:0;border-radius:6px;background:#5b5bd6;color:#fff}
+#st{padding:8px;font-size:15px;font-weight:bold}
+canvas{width:100%;max-width:528px;touch-action:none;background:#14143a;display:block;margin:0 auto}
+button{font:inherit;font-size:14px;padding:8px 10px;margin:3px;border:0;border-radius:6px;background:#5b5bd6;color:#fff}
 button:focus-visible{outline:3px solid #ffe14a}
 #day{max-width:528px;margin:0 auto;padding:12px}
 #dayTitle{font-size:16px;font-weight:bold;margin:8px 0}
 #dayText{font-size:14px;line-height:1.6;min-height:96px;text-align:left}
-#log{font-size:13px;text-align:left;max-width:528px;margin:4px auto;padding:0 10px;min-height:90px;line-height:1.5}
+.w{max-width:528px;margin:0 auto}
+#hint{font-size:12px;min-height:18px;line-height:18px;color:#ffe14a}
+#party{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:4px;max-width:528px;margin:0 auto;padding:0 2px;box-sizing:border-box}
+.pc{display:flex;gap:4px;align-items:center;background:#1c1c4a;border:2px solid #2a2a60;border-radius:6px;padding:3px}
+.pc.on{border-color:#ffe14a}.pc.off{opacity:.5}
+.ic{width:30px;height:30px;border-radius:5px;background:#3ad0ff;color:#001;display:flex;align-items:center;justify-content:center;font-weight:bold;overflow:hidden;flex:none}
+.ic img{width:100%;height:100%;object-fit:cover;object-position:top}
+.bs{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.bar{position:relative;height:12px;background:#0b0b25;border-radius:3px;overflow:hidden;text-align:right}
+.bar i{display:block;height:100%;background:#4cc760}
+.bar.sp i{background:#4a8cff}
+.bar.nb{visibility:hidden}
+.bar b{position:absolute;right:3px;top:0;font-size:10px;line-height:12px;font-weight:normal}
+#det{display:grid;grid-template-columns:84px minmax(0,1fr) minmax(0,1.4fr);gap:8px;max-width:528px;margin:8px auto 0;padding:8px;box-sizing:border-box;background:#101030;border-radius:8px;text-align:left;font-size:12px;line-height:1.5}
+#pic{text-align:center}
+#pic img{width:84px;height:84px;object-fit:contain}
+.big{width:68px;height:68px;margin:0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:bold;color:#001}
+.nm{font-weight:bold;margin-top:4px;font-size:13px}
+.r{display:flex;justify-content:space-between;gap:4px}
+.h{font-weight:bold;color:#9a9aff;margin:0 0 2px;border-bottom:1px solid #2a2a60}
+.sk{padding:3px 5px;margin:2px 0 4px;border:1px solid #3a3a80;border-radius:5px}
+.sk.on{border-color:#ffe14a;background:#2a2a60}.sk.off{opacity:.4}
+.sk b{display:block;font-size:12px}.sk small{font-size:10px;color:#b8b8ff}
+.mt{color:#8a8aaa;grid-column:1/-1}
+.h2{font-size:12px;font-weight:bold;color:#9a9aff;text-align:left;margin:8px 0 0}
+#log{font-size:13px;text-align:left;margin:2px auto;padding:6px 8px;box-sizing:border-box;min-height:90px;line-height:1.5;background:#101030;border-radius:8px}
 </style></head><body>
 <div id="st"></div>
 <div id="day" hidden><div id="dayTitle"></div><div id="dayText"></div><div id="dayBtns"></div></div>
 <div id="battle" hidden>
 <canvas id="c" width="528" height="396"></canvas>
-<div><button id="go">ターン実行</button><button id="sk">スキル</button><button id="tk" hidden>テスト砲</button><button id="skip">攻撃なし</button><button id="un">選び直し</button><button id="cl">全部リセット</button><button id="cm">カメラ</button><button id="rs">最初から</button></div>
+<div id="hint" class="w"></div>
+<div id="party"></div>
+<div id="det"><div id="pic"></div><div id="stat"></div><div id="side"><div class="h">状態</div><div id="state"></div><div class="h" style="margin-top:6px">スキル</div><div id="skills"></div></div></div>
+<div class="w"><button id="go">ターン実行</button><button id="sk">スキル</button><button id="tk" hidden>テスト砲</button><button id="skip">攻撃なし</button><button id="un">選び直し</button><button id="cl">全部リセット</button><button id="cm">カメラ</button><button id="rs">最初から</button></div>
 <div><button id="dawn" hidden>夜明けへ</button></div>
-<div id="log"></div>
+<div class="w"><div class="h2">履歴</div><div id="log"></div></div>
 </div>
 <script src="data.js"></script>
 <script src="game.js"></script>
